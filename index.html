@@ -169,6 +169,34 @@ main:has(#app:not(.hidden)) { padding: env(safe-area-inset-top, 0px) clamp(11px,
 #setPriceDialog .dialog-actions { justify-content: flex-end; margin-top: 12px; }
 #setPriceError { color: #b72542; margin: 6px 0 0; }
 
+.meal-card-heading { align-items: flex-start; }
+.meal-card-heading .title { min-width: 0; overflow-wrap: anywhere; }
+.meal-card-actions { display: flex; gap: 5px; flex: none; align-items: center; }
+.meal-card-actions .link { padding: 3px 4px; }
+.meal-detail-link, .meal-recipe-link { color: #0662d0; }
+.meal-feature-photo {
+  width: 100%; display: block; margin-top: 12px; max-height: 320px;
+  aspect-ratio: 16 / 10; object-fit: cover; border-radius: 14px; background: #f1f4f8;
+}
+.meal-feature-photo[hidden], .meal-photo-preview[hidden] { display: none; }
+.meal-description { white-space: pre-wrap; overflow-wrap: anywhere; margin: 11px 0 6px; line-height: 1.45; }
+.meal-recipe-link { display: inline-block; font-weight: 650; margin: 7px 0 4px; }
+#mealDetailsDialog {
+  width: min(410px, calc(100% - 30px)); max-height: calc(100% - 26px); max-height: calc(100dvh - 26px);
+  padding: 18px; border: 1px solid #e9edf4; border-radius: 18px; color: #0a1020;
+}
+#mealDetailsDialog::backdrop { background: #10182745; }
+#mealDetailsDialog .dialog-actions { justify-content: flex-end; margin-top: 10px; }
+#mealDetailsName { margin: 0; overflow-wrap: anywhere; }
+#mealDetailsError { color: #b72542; margin: 6px 0 0; }
+#mealDetailsDialog textarea {
+  display: block; width: 100%; margin: 7px 0; border: 1px solid #e6eaf1; border-radius: 14px;
+  padding: 11px; background: #fff; font-family: inherit; outline-color: #79aafa; resize: vertical;
+}
+#mealDetailsDialog input[type="file"] { padding: 8px; }
+.meal-photo-preview { display: block; max-width: 100%; max-height: 115px; margin: 8px 0; border-radius: 10px; }
+#removeMealPhoto { color: #b72542; }
+
 </style>
 </head>
 <body>
@@ -211,6 +239,25 @@ main:has(#app:not(.hidden)) { padding: env(safe-area-inset-top, 0px) clamp(11px,
     <div class="row dialog-actions">
       <button class="btn alt" id="cancelPrice" type="button">Отмена</button>
       <button class="btn" id="submitPrice">Сохранить</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="mealDetailsDialog" aria-labelledby="mealDetailsTitle">
+  <form id="mealDetailsForm">
+    <h2 id="mealDetailsTitle">Детали блюда</h2>
+    <p id="mealDetailsName" class="muted"></p>
+    <label for="mealPhoto">Фото</label>
+    <img id="mealPhotoPreview" class="meal-photo-preview" alt="" hidden>
+    <input id="mealPhoto" name="photo" type="file" accept="image/*">
+    <button id="removeMealPhoto" type="button" class="link" hidden>Убрать фото</button>
+    <label for="mealDescription">Описание</label>
+    <textarea id="mealDescription" name="description" rows="3" maxlength="2000" placeholder="Заметки или способ приготовления"></textarea>
+    <label for="mealRecipe">Ссылка на рецепт</label>
+    <input id="mealRecipe" name="recipe" type="url" inputmode="url" maxlength="2000" placeholder="https://www.instagram.com/…">
+    <p id="mealDetailsError" role="alert"></p>
+    <div class="row dialog-actions">
+      <button type="button" class="btn alt" id="cancelMealDetails">Отмена</button>
+      <button type="submit" class="btn" id="saveMealDetails">Сохранить</button>
     </div>
   </form>
 </dialog>
@@ -649,6 +696,225 @@ function renderShopping(groups, done) {
     <div class="card">${rows || '<div class="empty">Пока пусто. Добавьте первую покупку!</div>'}</div>`;
 }
 
+const mealPhotoBucket = 'meal-photos';
+const maxMealPhotoSize = 3 * 1024 * 1024;
+const mealPhotoCache = new Map();
+let mealPhotoObserver;
+let mealDetailsDraft = null;
+
+function recipeAddress(value) {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  try {
+    const url = new URL(text);
+    if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password || url.href.length > 2000) return null;
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+function recipeCaption(url) {
+  return /(^|\.)instagram\.com$/i.test(url.hostname) ? 'Открыть в Instagram' : 'Открыть рецепт';
+}
+
+function releaseMealPhoto(path) {
+  const entry = mealPhotoCache.get(path);
+  mealPhotoCache.delete(path);
+  if (entry?.url) URL.revokeObjectURL(entry.url);
+}
+
+async function mealPhotoUrl(path) {
+  if (mealPhotoCache.has(path)) return mealPhotoCache.get(path).promise;
+  const entry = {};
+  entry.promise = (async () => {
+    try {
+      const {data, error} = await sb.storage.from(mealPhotoBucket).download(path);
+      if (error || !data || mealPhotoCache.get(path) !== entry) return null;
+      entry.url = URL.createObjectURL(data);
+      return entry.url;
+    } catch {
+      return null;
+    } finally {
+      if (!entry.url && mealPhotoCache.get(path) === entry) mealPhotoCache.delete(path);
+    }
+  })();
+  mealPhotoCache.set(path, entry);
+  return entry.promise;
+}
+
+async function displayMealPhoto(image) {
+  const path = image.dataset.mealPhoto;
+  const url = await mealPhotoUrl(path);
+  if (!image.isConnected || image.dataset.mealPhoto !== path) return;
+  if (url) image.src = url;
+  else image.hidden = true;
+}
+
+function observeMealPhotos() {
+  const usedPaths = new Set(meals.map(meal => meal.photo_path).filter(Boolean));
+  for (const path of mealPhotoCache.keys()) {
+    if (!usedPaths.has(path)) releaseMealPhoto(path);
+  }
+  mealPhotoObserver?.disconnect();
+  const images = $('meals').querySelectorAll('[data-meal-photo]');
+  if (typeof IntersectionObserver === 'function') {
+    mealPhotoObserver ||= new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        mealPhotoObserver.unobserve(entry.target);
+        void displayMealPhoto(entry.target);
+      }
+    }, {rootMargin: '140px'});
+    for (const image of images) mealPhotoObserver.observe(image);
+  } else if (tab === 'meals') {
+    for (const image of images) void displayMealPhoto(image);
+  }
+}
+
+function clearMealPhotoPreview() {
+  if (mealDetailsDraft?.previewUrl) {
+    URL.revokeObjectURL(mealDetailsDraft.previewUrl);
+    mealDetailsDraft.previewUrl = null;
+  }
+  const image = $('mealPhotoPreview');
+  image.hidden = true;
+  image.removeAttribute('src');
+}
+
+async function openMealDetails(meal) {
+  clearMealPhotoPreview();
+  const draft = {id: meal.id, originalPath: meal.photo_path, revision: meal.details_revision, removePhoto: false};
+  mealDetailsDraft = draft;
+  $('mealDetailsForm').reset();
+  $('mealDetailsName').textContent = meal.name;
+  $('mealDescription').value = meal.description || '';
+  $('mealRecipe').value = meal.recipe_url || '';
+  $('mealDetailsError').textContent = '';
+  $('removeMealPhoto').hidden = !meal.photo_path;
+  $('mealDetailsDialog').showModal();
+  if (!meal.photo_path) return;
+  const url = await mealPhotoUrl(meal.photo_path);
+  if (url && mealDetailsDraft === draft && !draft.removePhoto && !$('mealPhoto').files.length) {
+    $('mealPhotoPreview').src = url;
+    $('mealPhotoPreview').hidden = false;
+  }
+}
+
+$('mealPhoto').onchange = () => {
+  const file = $('mealPhoto').files[0];
+  if (!file || !mealDetailsDraft) return;
+  clearMealPhotoPreview();
+  $('mealDetailsError').textContent = '';
+  mealDetailsDraft.previewUrl = URL.createObjectURL(file);
+  mealDetailsDraft.removePhoto = false;
+  $('mealPhotoPreview').src = mealDetailsDraft.previewUrl;
+  $('mealPhotoPreview').hidden = false;
+  $('removeMealPhoto').hidden = false;
+};
+$('removeMealPhoto').onclick = () => {
+  clearMealPhotoPreview();
+  mealDetailsDraft.removePhoto = true;
+  $('mealPhoto').value = '';
+  $('removeMealPhoto').hidden = true;
+};
+$('cancelMealDetails').onclick = () => $('mealDetailsDialog').close();
+$('mealDetailsDialog').addEventListener('cancel', event => {
+  if ($('saveMealDetails').disabled) event.preventDefault();
+});
+$('mealDetailsDialog').addEventListener('close', () => {
+  clearMealPhotoPreview();
+  mealDetailsDraft = null;
+});
+
+async function resizeMealPhoto(file) {
+  const source = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    await new Promise((resolve, reject) => {
+      image.onload = resolve;
+      image.onerror = () => reject(new Error('Не удалось открыть фото. Попробуй выбрать JPG, PNG или другой снимок.'));
+      image.src = source;
+    });
+    const scale = Math.min(1, 1600 / Math.max(image.naturalWidth, image.naturalHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const context = canvas.getContext('2d');
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.84));
+    if (!blob || blob.size > maxMealPhotoSize) throw new Error('Не удалось подготовить фото. Попробуй выбрать снимок поменьше.');
+    return blob;
+  } finally {
+    URL.revokeObjectURL(source);
+  }
+}
+
+async function removeMealPhotoFile(path) {
+  if (!path) return;
+  try {
+    const {error} = await sb.storage.from(mealPhotoBucket).remove([path]);
+    if (error) console.warn('Не удалось удалить старое фото блюда:', error.message);
+  } catch (error) {
+    console.warn('Не удалось удалить старое фото блюда:', error.message);
+  }
+  releaseMealPhoto(path);
+}
+
+$('mealDetailsForm').onsubmit = async event => {
+  event.preventDefault();
+  const draft = mealDetailsDraft;
+  const errorText = $('mealDetailsError');
+  const submit = $('saveMealDetails');
+  const cancel = $('cancelMealDetails');
+  if (!draft || submit.disabled || !space) return;
+  if (!meals.some(meal => meal.id === draft.id)) {
+    errorText.textContent = 'Это блюдо уже удалено.';
+    return;
+  }
+  const recipeText = $('mealRecipe').value.trim();
+  const recipe = recipeAddress(recipeText);
+  if (recipeText && !recipe) {
+    errorText.textContent = 'Вставь полную ссылку на рецепт, начиная с https:// или http://.';
+    return;
+  }
+  const file = $('mealPhoto').files[0];
+  const description = $('mealDescription').value.trim();
+  const workspace = space.id;
+  const storage = file ? sb.storage.from(mealPhotoBucket) : null;
+  let uploadedPath = null;
+  errorText.textContent = '';
+  submit.disabled = cancel.disabled = true;
+  try {
+    if (file) {
+      const blob = await resizeMealPhoto(file);
+      uploadedPath = workspace + '/' + draft.id + '/' + crypto.randomUUID() + '.jpg';
+      const {error} = await storage.upload(uploadedPath, blob, {contentType: 'image/jpeg', upsert: false});
+      if (error) throw new Error('Не удалось загрузить фото. ' + error.message);
+    }
+    const nextPath = uploadedPath || (draft.removePhoto ? null : draft.originalPath);
+    const {data, error} = await sb.from('meals').update({
+      description, recipe_url: recipe?.href || null, photo_path: nextPath,
+      details_revision: draft.revision + 1
+    }).eq('space_id', workspace).eq('id', draft.id).eq('details_revision', draft.revision).select('id');
+    if (error) throw new Error(error.message);
+    if (!data?.length) throw new Error('Блюдо изменилось в другой вкладке. Закрой форму и открой её заново.');
+    uploadedPath = null;
+    $('mealDetailsDialog').close();
+    if (draft.originalPath && draft.originalPath !== nextPath) {
+      await removeMealPhotoFile(draft.originalPath);
+    }
+    await refresh();
+  } catch (error) {
+    if (uploadedPath) await removeMealPhotoFile(uploadedPath);
+    errorText.textContent = error.message || 'Не удалось сохранить блюдо.';
+  } finally {
+    submit.disabled = cancel.disabled = false;
+  }
+};
+
 function renderMeals() {
   const byMeal = new Map();
   for (const item of items) {
@@ -660,8 +926,18 @@ function renderMeals() {
     <div class="card"><form id="addMeal" data-draft><input name="name" placeholder="Название блюда" maxlength="120" required><button class="btn">+ Добавить блюдо</button></form></div>
   ` + meals.map(meal => {
     const ingredients = groupProducts(byMeal.get(meal.id) || []);
+    const recipe = recipeAddress(meal.recipe_url);
     return `<div class="card">
-      <div class="row between"><div class="title">${escape(meal.name)}</div><button type="button" class="link" data-mealdel="${escape(meal.id)}">Удалить</button></div>
+      <div class="row between meal-card-heading">
+        <div class="title">${escape(meal.name)}</div>
+        <div class="meal-card-actions">
+          ${Number.isInteger(meal.details_revision) ? `<button type="button" class="link meal-detail-link" data-meal-edit="${escape(meal.id)}">Детали</button>` : ''}
+          <button type="button" class="link" data-mealdel="${escape(meal.id)}">Удалить</button>
+        </div>
+      </div>
+      ${meal.photo_path ? `<img class="meal-feature-photo" data-meal-photo="${escape(meal.photo_path)}" alt="">` : ''}
+      ${meal.description ? `<p class="meal-description">${escape(meal.description)}</p>` : ''}
+      ${recipe ? `<a class="meal-recipe-link" href="${escape(recipe.href)}" target="_blank" rel="noopener noreferrer">${recipeCaption(recipe)}</a>` : ''}
       ${ingredients.length ? `<div class="meal-ingredients">${ingredients.map(group => `<div class="row ingredient-entry ${group.purchased ? 'done' : ''}">
         ${checkedBox(group)}
         <div class="grow"><div class="itemname">${escape(group.name)} — ${escape(group.quantity)}</div>
@@ -783,13 +1059,21 @@ function bindPurchaseForms() {
       if (item) openPrice(item);
     };
   });
+  document.querySelectorAll('[data-meal-edit]').forEach(button => {
+    button.onclick = () => {
+      const meal = meals.find(row => row.id === button.dataset.mealEdit);
+      if (meal) void openMealDetails(meal);
+    };
+  });
   document.querySelectorAll('[data-del], [data-mealdel]').forEach(button => {
     button.onclick = async () => {
       const isMeal = Boolean(button.dataset.mealdel);
       if (!confirm(isMeal ? 'Удалить блюдо? Ингредиенты останутся в покупках.' : 'Удалить покупку?')) return;
-      const {error} = await sb.from(isMeal ? 'meals' : 'shopping_items').delete()
-        .eq('space_id', space.id).eq('id', button.dataset.mealdel || button.dataset.del);
+      const id = button.dataset.mealdel || button.dataset.del;
+      const deletion = sb.from(isMeal ? 'meals' : 'shopping_items').delete().eq('space_id', space.id).eq('id', id);
+      const {data, error} = await (isMeal ? deletion.select('*') : deletion);
       if (error) alert(error.message);
+      else if (isMeal && data?.[0]?.photo_path) await removeMealPhotoFile(data[0].photo_path);
       await refresh();
     };
   });
@@ -884,6 +1168,7 @@ function render(){if(!user)return;if(!space){$('headerPeople').innerHTML='';$('h
   renderHome(groups, done, pct);
   renderShopping(groups, done);
   renderMeals();
+  observeMealPhotos();
   $('budget').innerHTML = sectionHeading('budget', 'Бюджет') + `
     <div class="card">
       <div class="muted">Потрачено на отмеченные покупки</div>
@@ -893,7 +1178,7 @@ function render(){if(!user)return;if(!space){$('headerPeople').innerHTML='';$('h
   restoreDrafts(drafts);
   bindPurchaseForms();
 }
-sb.auth.onAuthStateChange((event)=>{if(event==='SIGNED_OUT'){user=null;$('auth').classList.remove('hidden');$('app').classList.add('hidden');$('nav').classList.add('hidden')}});init();
+sb.auth.onAuthStateChange((event)=>{if(event==='SIGNED_OUT'){user=null;mealPhotoObserver?.disconnect();for(const path of mealPhotoCache.keys())releaseMealPhoto(path);$('auth').classList.remove('hidden');$('app').classList.add('hidden');$('nav').classList.add('hidden')}});init();
 </script>
 </body>
 </html>
