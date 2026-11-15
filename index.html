@@ -102,8 +102,18 @@ main:has(#app:not(.hidden)) { padding: env(safe-area-inset-top, 0px) clamp(11px,
 .preview-item .itemname { font-size: clamp(13px, 3.85vw, 19px); color: #10131a; }
 .preview-item.done .itemname { color: #303646; text-decoration-thickness: 1px; }
 .nav { min-height: 68px; padding: 8px 6px calc(11px + env(safe-area-inset-bottom, 0px)); border: 1px solid #e9eaf0; border-bottom: 0; border-radius: 16px 16px 0 0; background: #fdfdfeef; }
-.nav button { padding: 0 2px; color: #303646; font-size: clamp(11px, 3.05vw, 15px); }
+.nav button {
+  padding: 0 2px; color: #303646; font-size: clamp(11px, 3.05vw, 15px);
+  -webkit-tap-highlight-color: transparent;
+}
+.nav button:active { transform: none; }
+.nav button:focus:not(:focus-visible) { outline: none; }
+.nav button:focus-visible { outline: 2px solid #0068e8; outline-offset: -2px; border-radius: 10px; }
 .nav button .icon { display: block; width: 27px; height: 27px; margin: 0 auto 3px; }
+@media (prefers-reduced-motion: no-preference) {
+  .nav button .icon { transition: transform 150ms ease-out; }
+  .nav button:active .icon { transform: scale(.86); transition-duration: 80ms; }
+}
 .nav button.active { color: #0068e8; font-weight: 650; }
 .nav .home-fill { fill: none; }
 .nav button.active .home-fill { fill: currentColor; }
