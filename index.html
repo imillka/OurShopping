@@ -241,6 +241,13 @@ body:has(.meals-list-view), body:has(.meal-page-view) { background: #f8f8fc; }
   display: grid; grid-template-columns: minmax(76px, 39%) minmax(0, 1fr); align-items: center;
   gap: clamp(10px, 4vw, 18px); text-decoration: none; color: #0a1020;
 }
+#meals :is(a, button, summary) { -webkit-tap-highlight-color: transparent; }
+.meal-tile:has(.meal-tile-link:active) { background-color: #f0f5ff; }
+.meal-tile-link:focus-visible { outline: 2px solid #0864e6; outline-offset: 3px; border-radius: 14px; }
+@media (prefers-reduced-motion: no-preference) {
+  .meal-tile { transition: transform 160ms ease-out, background-color 160ms ease-out; }
+  .meal-tile:has(.meal-tile-link:active) { transform: scale(.975); transition-duration: 85ms; }
+}
 .meal-tile-photo { position: relative; width: 100%; aspect-ratio: 1; overflow: hidden; border-radius: 17px; background: #edf2fa; }
 .meal-tile-photo > img, .meal-cover > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .meal-photo-fallback { position: absolute; inset: 0; display: grid; place-items: center; color: #7593bf; background: linear-gradient(145deg, #e3edfd, #f1f5fb); }
