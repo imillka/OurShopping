@@ -211,7 +211,7 @@ main:has(#app:not(.hidden)) { padding: env(safe-area-inset-top, 0px) clamp(11px,
 #app.meal-page-view > .app-header { display: none; }
 main:has(.meal-page-view) { padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px)); }
 .nav.meal-page-nav-hidden { display: none; }
-body:has(.meals-list-view), body:has(.meal-page-view) { background: #f8f8fc; }
+
 .meals-intro { margin: 0 5px 28px; color: #4d566f; line-height: 1.4; font-size: clamp(14px, 3.7vw, 18px); }
 .meal-primary {
   display: flex; width: 100%; min-height: 60px; align-items: center; justify-content: center; gap: 11px;
@@ -338,7 +338,7 @@ body:has(.meals-list-view), body:has(.meal-page-view) { background: #f8f8fc; }
 .sync-status[hidden] { display: none; }
 #shopping :is(button,select,a) { -webkit-tap-highlight-color: transparent; }
 body:has(#shopping:not(.hidden)) #app:not(.hidden) { color: #0a1226; }
-body:has(#app:not(.hidden) #shopping:not(.hidden)) { background: #f4f6fd; }
+body { background: #f4f6fd; }
 #shopping .shop-card { border-radius: 21px; padding: 12px; background: #ffffffb5; border-color: #e4eafb; }
 .shop-name-line { display: grid; grid-template-columns: 42px minmax(0,1fr); align-items: center; gap: 10px; }
 .shop-icon { border: 0; background: transparent; border-radius: 11px; padding: 0; min-width: 34px; min-height: 36px; font-size: 25px; }
@@ -376,6 +376,34 @@ body:has(#app:not(.hidden) #shopping:not(.hidden)) { background: #f4f6fd; }
 #shoppingIconChoices button { border: 0; border-radius: 10px; background: #f0f5ff; font-size: 23px; min-height: 36px; padding: 0; }
 #shoppingIconChoices button[aria-pressed="true"] { outline: 2px solid #0971f7; }
 
+
+.quantity-with-unit { display: grid; grid-template-columns: minmax(0, 144px) minmax(90px, 1fr); gap: 10px; align-items: start; }
+.quantity-with-unit > label { margin: 9px 0; }
+.quantity-with-unit select { min-height: 45px; margin: 6px 0 0; }
+.shop-icon img, .home-product-icon img { display: block; width: 29px; height: 29px; object-fit: contain; margin-inline: auto; }
+.custom-icon-upload { color: #0755cc; font-size: 14px; }
+.custom-icon-upload input { font-weight: 400; padding: 8px; }
+#shoppingIconError { margin: 0 0 8px; color: #b72542; font-size: 13px; }
+#home .home-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin: 13px 0 0; }
+.home-summary-card { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 6px; min-width: 0; border: 0; border-radius: 15px; padding: 9px; color: #102039; text-align: left; }
+.home-summary-card small, .home-summary-card strong { display: block; }
+.home-summary-card small { font-size: 10px; }
+.home-summary-card strong { font-size: clamp(12px,3.6vw,17px); overflow-wrap: anywhere; }
+.home-summary-card .icon { width: 19px; height: 19px; }
+.home-summary-purchases { color: #0752b8; background: #e3edff; }
+.home-summary-purchases .bar { grid-column: 1 / -1; height: 5px; background: #cbdcff; }
+.home-summary-purchases .bar i { background: #1481ff; }
+.home-summary-percent { font-size: 9px; border-radius: 15px; background: #fff9; padding: 3px 5px; white-space: nowrap; }
+.home-summary-budget { color: #14713e; background: #e0f5e7; }
+.home-summary-budget > .icon:last-child { width: 13px; }
+.home-summary-card span strong { color: #0a1020; }
+#home .shopping-preview .filter-chip[aria-pressed="true"] { color: #fff; background: #0876f9; }
+#home .preview-items { margin-inline: 0; padding-inline: 8px; background: #fff9; border-color: #e5eafb; }
+#home .preview-item { grid-template-columns: 22px 30px minmax(0, 1fr); column-gap: 7px; }
+.home-product-icon { display: grid; place-items: center; font-size: 24px; align-self: center; }
+#home .preview-item .itemname { font-weight: 650; font-size: clamp(12px,3.4vw,15px); }
+.home-product-quantity { color: #526079; font-size: clamp(10px,3vw,13px); max-width: 40%; text-align: right; overflow-wrap: anywhere; }
+
 </style>
 </head>
 <body>
@@ -405,7 +433,11 @@ body:has(#app:not(.hidden) #shopping:not(.hidden)) { background: #f4f6fd; }
   <form id="addProductForm">
     <h2 id="addProductTitle">Новый товар</h2>
     <label for="productName">Название</label>
-    <div id="productNameField"></div>
+    <div class="shop-name-line">
+      <button type="button" class="shop-icon" id="homeNewProductIcon" data-shop-icon="" aria-label="Выбрать иконку нового товара">🛍️</button>
+      <input type="hidden" name="productIcon">
+      <div id="productNameField"></div>
+    </div>
     <div id="productQuantityField"></div>
     <div id="productPriceField"></div>
     <p id="addProductError" role="alert"></p>
@@ -457,6 +489,8 @@ body:has(#app:not(.hidden) #shopping:not(.hidden)) { background: #f4f6fd; }
 <dialog id="shoppingIconsDialog" aria-labelledby="shoppingIconTitle">
   <h2 id="shoppingIconTitle">Иконка товара</h2>
   <div id="shoppingIconChoices"></div>
+  <label class="custom-icon-upload">Загрузить свою иконку<input id="shoppingIconUpload" type="file" accept="image/*"></label>
+  <p id="shoppingIconError" role="alert"></p>
   <button type="button" class="btn alt" id="closeShoppingIcons">Закрыть</button>
 </dialog>
 <script>
@@ -603,7 +637,7 @@ document.addEventListener('keydown', event => {
   }
 });
 
-function renderHome(groups, done, pct) {
+function renderHome(groups, done, pct, total) {
   const avatars = members.map(person).join('');
   $('headerPeople').innerHTML = avatars;
   const scrollTop = $('previewItems')?.scrollTop || 0;
@@ -619,12 +653,14 @@ function renderHome(groups, done, pct) {
     `<button type="button" class="filter-chip" data-purchase-filter="${key}" aria-pressed="${purchaseFilter === key}">${label} ${count}</button>`
   ).join('');
   const previewRows = preview.map(item => {
-    const buyers = new Set(item.rows.map(row => row.purchased_by));
-    const buyer = item.purchased && buyers.size === 1 && members.find(member => buyers.has(member.user_id));
     return `<div class="preview-item${item.purchased ? ' done' : ''}">
       ${checkedBox(item)}
-      <div class="grow"><div><span class="itemname">${escape(item.name)} — ${escape(item.quantity)}</span>
-      ${item.partial ? `<span class="purchase-status small">${escape(purchaseStatus(item))}</span>` : ''}</div>${buyer ? person(buyer) : ''}</div>
+      <span class="home-product-icon" aria-hidden="true">${shoppingIconMarkup(shoppingIcon(item.name))}</span>
+      <div class="grow">
+        <div><span class="itemname">${escape(item.name)}</span>
+        ${item.partial ? `<span class="purchase-status small">${escape(purchaseStatus(item))}</span>` : ''}</div>
+        <span class="home-product-quantity">— ${escape(displayShoppingQuantity(item.quantity))}</span>
+      </div>
     </div>`;
   }).join('');
   $('home').innerHTML = `
@@ -640,12 +676,15 @@ function renderHome(groups, done, pct) {
         <button type="button" id="logout">Выйти</button>
       </div>
     </div>
-    <div class="progress-card">
-      <h2>Куплено ${done} из ${groups.length}</h2>
-      <div class="row">
-        <div class="bar" role="progressbar" aria-label="Купленные товары" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div>
-        <span>${pct} %</span>
-      </div>
+    <div class="home-summary">
+      <button type="button" id="homeShoppingSummary" class="home-summary-card home-summary-purchases">
+        ${icon('shopping')} <span><small>Куплено</small><strong>${done} из ${groups.length}</strong></span>
+        <span class="home-summary-percent">${pct} %</span>
+        <span class="bar" role="progressbar" aria-label="Купленные товары" aria-valuenow="${pct}"><i style="width:${pct}%"></i></span>
+      </button>
+      <button type="button" id="homeBudgetSummary" class="home-summary-card home-summary-budget">
+        ${icon('budget')} <span><small>Бюджет</small><strong>${money(total)}</strong></span> ${icon('next')}
+      </button>
     </div>
     <section class="shopping-preview" aria-labelledby="shoppingPreviewTitle">
       <div class="row between list-heading">
@@ -670,11 +709,14 @@ function renderHome(groups, done, pct) {
       $(popoverId).hidden = false;
     }
   });
+  $('homeShoppingSummary').onclick = () => showTab('shopping');
+  $('homeBudgetSummary').onclick = () => showTab('budget');
   $('goShopping').onclick = () => showTab('shopping');
   $('logout').onclick = signOutFromApp;
   $('newProduct').onclick = () => {
     $('addProductError').textContent = '';
     $('addProductForm').reset();
+    $('homeNewProductIcon').textContent = '🛍️';
     $('addProductDialog').showModal();
   };
   document.querySelectorAll('[data-purchase-filter]').forEach(button => {
@@ -907,10 +949,10 @@ function readShoppingIcons() {
 function shoppingIcon(name) {
   const key = productKey(name);
   const stored = readShoppingIcons()[key];
-  return shoppingIcons.includes(stored) ? stored : suggestedIcons.find(([match]) => match.test(key))?.[1] || '🛍️';
+  return validShoppingIcon(stored) ? stored : suggestedIcons.find(([match]) => match.test(key))?.[1] || '🛍️';
 }
 function saveShoppingIcon(name, glyph) {
-  if (!name || !shoppingIcons.includes(glyph)) return;
+  if (!name || !validShoppingIcon(glyph)) return;
   try {
     const values = readShoppingIcons();
     Object.defineProperty(values, productKey(name), {value:glyph,enumerable:true,configurable:true,writable:true});
@@ -919,28 +961,75 @@ function saveShoppingIcon(name, glyph) {
     alert('Не удалось сохранить иконку на устройстве.');
   }
 }
+function isCustomShoppingIcon(value) {
+  return typeof value === 'string' && value.length <= 70000 && /^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(value);
+}
+function validShoppingIcon(value) {
+  return shoppingIcons.includes(value) || isCustomShoppingIcon(value);
+}
+function shoppingIconMarkup(value) {
+  return isCustomShoppingIcon(value) ? `<img src="${escape(value)}" alt="">` : escape(value);
+}
+function displayShoppingQuantity(quantity) {
+  if (/^[\d\s\u00a0\u202f]+(?:,\d+)?$/.test(quantity)) return quantity + ' шт.';
+  return quantity.replace(/(\d) уп(?=\s|$)/g, '$1 уп.');
+}
 let shoppingIconTarget;
 function openShoppingIcons(button, name) {
+  const current = name ? shoppingIcon(name) : button.form.elements.namedItem('productIcon').value || '🛍️';
   shoppingIconTarget = {button, name};
   $('shoppingIconChoices').innerHTML = shoppingIcons.map(glyph =>
-    `<button type="button" data-glyph="${glyph}" aria-pressed="${glyph === button.textContent.trim()}">${glyph}</button>`
+    `<button type="button" data-glyph="${glyph}" aria-pressed="${glyph === current}">${glyph}</button>`
   ).join('');
+  $('shoppingIconUpload').value = '';
+  $('shoppingIconError').textContent = '';
   $('shoppingIconsDialog').showModal();
 }
-$('shoppingIconChoices').onclick = event => {
-  const chosen = event.target.closest('[data-glyph]');
-  if (!chosen || !shoppingIconTarget) return;
-  const {button, name} = shoppingIconTarget;
-  const glyph = chosen.dataset.glyph;
-  if (name) saveShoppingIcon(name, glyph);
+function applyShoppingIcon(value, target) {
+  if (!target || target !== shoppingIconTarget || !$('shoppingIconsDialog').open) return;
+  const {button, name} = target;
+  if (name) saveShoppingIcon(name, value);
   else {
-    button.textContent = glyph;
-    button.form.elements.namedItem('productIcon').value = glyph;
+    // A refresh can render the add form while the picker is open.
+    const current = button.isConnected ? button : $('addItem')?.querySelector('[data-shop-icon]');
+    if (!current) return;
+    current.innerHTML = shoppingIconMarkup(value);
+    current.form.elements.namedItem('productIcon').value = value;
   }
   $('shoppingIconsDialog').close();
   if (name) render();
+}
+$('shoppingIconChoices').onclick = event => {
+  const chosen = event.target.closest('[data-glyph]');
+  if (chosen) applyShoppingIcon(chosen.dataset.glyph, shoppingIconTarget);
+};
+$('shoppingIconUpload').onchange = async event => {
+  const input = event.currentTarget;
+  const file = input.files[0];
+  const target = shoppingIconTarget;
+  if (!file) return;
+  $('shoppingIconError').textContent = '';
+  try {
+    const blob = await resizeMealPhoto(file, 96, 'image/png');
+    const value = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+    if (!isCustomShoppingIcon(value)) throw new Error('Не удалось подготовить иконку.');
+    applyShoppingIcon(value, target);
+  } catch (error) {
+    if (target === shoppingIconTarget && $('shoppingIconsDialog').open) {
+      $('shoppingIconError').textContent = error.message || 'Не удалось загрузить иконку.';
+    }
+  } finally {
+    input.value = '';
+  }
 };
 $('closeShoppingIcons').onclick = () => $('shoppingIconsDialog').close();
+
+$('homeNewProductIcon').onclick = event => openShoppingIcons(event.currentTarget, '');
 
 function unitSelect(selected = '', label = 'Единица') {
   const units = shoppingUnits.some(([unit]) => unit === selected) ? shoppingUnits : [...shoppingUnits,[selected,selected]];
@@ -1004,7 +1093,7 @@ function renderShopping(groups, done) {
     return `<div class="item purchase-group">
       <div class="row purchase-entry ${group.purchased ? 'done' : ''}">
         ${checkedBox(group)}
-        <button type="button" class="shop-icon" data-shop-icon="${escape(group.name)}" aria-label="Иконка товара ${escape(group.name)}">${shoppingIcon(group.name)}</button>
+        <button type="button" class="shop-icon" data-shop-icon="${escape(group.name)}" aria-label="Иконка товара ${escape(group.name)}">${shoppingIconMarkup(shoppingIcon(group.name))}</button>
         <div class="grow">
           <div class="itemname">${escape(group.name)}</div>
           ${mealName ? `<div class="muted small">${escape(mealName)}</div>` : ''}
@@ -1182,7 +1271,7 @@ $('mealDetailsDialog').addEventListener('close', () => {
   mealDetailsDraft = null;
 });
 
-async function resizeMealPhoto(file) {
+async function resizeMealPhoto(file, maxSide = 1600, format = 'image/jpeg') {
   const source = URL.createObjectURL(file);
   try {
     const image = new Image();
@@ -1191,15 +1280,17 @@ async function resizeMealPhoto(file) {
       image.onerror = () => reject(new Error('Не удалось открыть фото. Попробуй выбрать JPG, PNG или другой снимок.'));
       image.src = source;
     });
-    const scale = Math.min(1, 1600 / Math.max(image.naturalWidth, image.naturalHeight));
+    const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
     canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
     const context = canvas.getContext('2d');
-    context.fillStyle = '#fff';
-    context.fillRect(0, 0, canvas.width, canvas.height);
+    if (format === 'image/jpeg') {
+      context.fillStyle = '#fff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+    }
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.84));
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, format, 0.84));
     if (!blob || blob.size > maxMealPhotoSize) throw new Error('Не удалось подготовить фото. Попробуй выбрать снимок поменьше.');
     return blob;
   } finally {
@@ -1455,7 +1546,7 @@ function renderMealIngredients(meal, ingredients) {
         <div class="itemname">${escape(group.name)}</div>
         ${group.partial ? `<div class="muted small">${escape(purchaseStatus(group))}</div>` : ''}
       </div>
-      <span class="meal-ingredient-qty">${escape(group.quantity)}${/^\d+$/.test(group.quantity) ? ' шт.' : ''}</span>
+      <span class="meal-ingredient-qty">${escape(displayShoppingQuantity(group.quantity))}</span>
       <details class="ingredient-menu">
         <summary aria-label="Действия с ингредиентом">${icon('more')}</summary>
         <div class="meal-menu-panel"><button type="button" class="meal-action-danger" data-remove-ingredient="${escape(group.rows.map(row => row.id).join(','))}" data-meal="${escape(meal.id)}">Удалить ингредиент</button></div>
@@ -1465,7 +1556,7 @@ function renderMealIngredients(meal, ingredients) {
       <summary>${icon('plus')} Добавить ингредиент</summary>
       <form data-ingredient="${escape(meal.id)}" data-draft>
         ${productInput('Ингредиент')}
-        ${quantityStepper()}
+        <div class="quantity-with-unit">${quantityStepper()}<label>Единица${unitSelect()}</label></div>
         <button class="btn">Добавить</button>
       </form>
     </details>
@@ -1749,8 +1840,8 @@ function restoreDrafts(drafts) {
     for (const entry of draft.fields) {
       const field = form.elements.namedItem(entry.name);
       field.value = entry.value;
-      if (entry.name === 'productIcon' && shoppingIcons.includes(entry.value)) {
-        form.querySelector('[data-shop-icon]').textContent = entry.value;
+      if (entry.name === 'productIcon' && validShoppingIcon(entry.value)) {
+        form.querySelector('[data-shop-icon]').innerHTML = shoppingIconMarkup(entry.value);
       }
       if (!entry.focused || form.closest('section').id !== tab) continue;
       field.focus({preventScroll: true});
@@ -1762,7 +1853,7 @@ function restoreDrafts(drafts) {
 }
 
 $('productNameField').innerHTML = productInput('Что купить?', 'productName');
-$('productQuantityField').innerHTML = quantityStepper();
+$('productQuantityField').innerHTML = `<div class="quantity-with-unit">${quantityStepper()}<label>Единица${unitSelect()}</label></div>`;
 $('productPriceField').innerHTML = priceFields();
 $('editPriceFields').innerHTML = priceFields();
 
@@ -1808,7 +1899,7 @@ function render(){if(!user)return;if(!space){$('headerPeople').innerHTML='';$('h
   const done = groups.filter(group => group.purchased).length;
   const pct = groups.length ? Math.round(done / groups.length * 100) : 0;
   const total = items.reduce((sum, item) => sum + (item.purchased ? Math.round(Number(item.price || 0) * 100) : 0), 0) / 100;
-  renderHome(groups, done, pct);
+  renderHome(groups, done, pct, total);
   renderShopping(groups, done);
   renderMeals();
   observeMealPhotos();
