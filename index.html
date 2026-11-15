@@ -611,6 +611,7 @@ async function subscribeToList() {
   channel = sb.channel('shared-' + currentId)
     .on('postgres_changes', {event: '*', schema: 'public', table: 'shopping_items', filter: 'space_id=eq.' + currentId}, onChange)
     .on('postgres_changes', {event: '*', schema: 'public', table: 'meals', filter: 'space_id=eq.' + currentId}, onChange)
+    .on('postgres_changes', {event: '*', schema: 'public', table: 'shopping_product_icons', filter: 'space_id=eq.' + currentId}, onChange)
     .subscribe();
   await refresh();
 }
@@ -625,14 +626,15 @@ async function refresh() {
     results = await Promise.all([
       sb.from('shopping_items').select('*').eq('space_id', workspace.id).order('created_at'),
       sb.from('meals').select('*').eq('space_id', workspace.id).order('created_at'),
-      sb.from('space_members').select('user_id,display_name').eq('space_id', workspace.id).order('display_name')
+      sb.from('space_members').select('user_id,display_name').eq('space_id', workspace.id).order('display_name'),
+      loadSharedShoppingIcons(workspace.id)
     ]);
   } catch (error) {
     if (user?.id === account && version === refreshVersion) setConnectionUnavailable(true);
     return;
   }
   if (user?.id !== account || workspace.id !== space?.id || version !== refreshVersion) return;
-  const failed = results.find(result => result.error);
+  const failed = results.slice(0, 3).find(result => result.error);
   if (failed) {
     if (isNetworkFailure({...failed.error, status: failed.status}) || [401, 403].includes(failed.status)) {
       setConnectionUnavailable(true);
@@ -642,10 +644,11 @@ async function refresh() {
     }
     return;
   }
-  const [purchases, dishes, people] = results;
+  const [purchases, dishes, people, productIcons] = results;
   const snapshot = {
     space: workspace,
     items: purchases.data || [],
+    productIcons,
     meals: dishes.data || [],
     members: (people.data || []).sort((a, b) => Number(a.display_name.startsWith('❤')) - Number(b.display_name.startsWith('❤')))
   };
@@ -955,7 +958,10 @@ async function insertPurchase(form, mealId = null) {
     price,
     created_by: user.id
   }).select('id').single();
-  if (!result.error) saveShoppingIcon(name, fields.get('productIcon'));
+  if (!result.error && validShoppingIcon(fields.get('productIcon'))) {
+    try { await saveShoppingIcon(name, fields.get('productIcon')); }
+    catch { alert('Товар добавлен. Иконку сохранить не удалось, её можно выбрать ещё раз в списке.'); }
+  }
   return result;
 }
 
@@ -995,18 +1001,47 @@ function readShoppingIcons() {
 }
 function shoppingIcon(name) {
   const key = productKey(name);
-  const stored = readShoppingIcons()[key];
+  const snapshot = offlineState.snapshot;
+  const shared = snapshot?.space.id === space?.id && snapshot?.productIcons?.[key];
+  const stored = validShoppingIcon(shared) ? shared : readShoppingIcons()[key];
   return validShoppingIcon(stored) ? stored : suggestedIcons.find(([match]) => match.test(key))?.[1] || '🛍️';
 }
-function saveShoppingIcon(name, glyph) {
-  if (!name || !validShoppingIcon(glyph)) return;
+
+async function loadSharedShoppingIcons(workspace) {
+  const fallback = offlineState.snapshot?.space.id === workspace ? offlineState.snapshot.productIcons || {} : {};
   try {
-    const values = readShoppingIcons();
-    Object.defineProperty(values, productKey(name), {value:glyph,enumerable:true,configurable:true,writable:true});
-    localStorage.setItem(iconStoreKey(), JSON.stringify(values));
+    const result = await sb.from('shopping_product_icons').select('product_key,icon_value').eq('space_id', workspace);
+    if (result.error) return fallback;
+    const icons = Object.fromEntries((result.data || []).map(row => [row.product_key, row.icon_value]));
+    if (space?.id !== workspace) return icons;
+    const incoming = Object.entries(readShoppingIcons()).filter(([key, value]) =>
+      key.length > 0 && key.length <= 120 && !Object.hasOwn(icons, key) && validShoppingIcon(value)
+    );
+    for (let offset = 0; offset < incoming.length; offset += 15) {
+      const batch = incoming.slice(offset, offset + 15).map(([product_key, icon_value]) =>
+        ({space_id: workspace, product_key, icon_value}));
+      const imported = await sb.from('shopping_product_icons')
+        .upsert(batch, {onConflict:'space_id,product_key', ignoreDuplicates:true}).select('product_key,icon_value');
+      if (imported.error) break;
+      for (const row of imported.data || []) {
+        Object.defineProperty(icons, row.product_key, {value:row.icon_value,enumerable:true,configurable:true,writable:true});
+      }
+    }
+    return icons;
   } catch {
-    alert('Не удалось сохранить иконку на устройстве.');
+    return fallback;
   }
+}
+
+async function saveShoppingIcon(name, glyph) {
+  if (!name || !validShoppingIcon(glyph)) return;
+  const workspace = space?.id;
+  if (!workspace || !navigator.onLine || networkUnavailable || validatedAccount !== user?.id) {
+    throw new Error('Подключись к интернету, чтобы сохранить иконку для всех участников.');
+  }
+  const {error} = await sb.from('shopping_product_icons')
+    .upsert({space_id:workspace, product_key:productKey(name), icon_value:glyph}, {onConflict:'space_id,product_key'});
+  if (error) throw new Error(error.message);
 }
 function isCustomShoppingIcon(value) {
   return typeof value === 'string' && value.length <= 70000 && /^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(value);
@@ -1032,11 +1067,21 @@ function openShoppingIcons(button, name) {
   $('shoppingIconError').textContent = '';
   $('shoppingIconsDialog').showModal();
 }
-function applyShoppingIcon(value, target) {
+async function applyShoppingIcon(value, target) {
   if (!target || target !== shoppingIconTarget || !$('shoppingIconsDialog').open) return;
   const {button, name} = target;
-  if (name) saveShoppingIcon(name, value);
-  else {
+  if (name) {
+    if (target.saving) return;
+    target.saving = true;
+    $('shoppingIconError').textContent = '';
+    try { await saveShoppingIcon(name, value); }
+    catch (error) {
+      if (target === shoppingIconTarget) $('shoppingIconError').textContent = error.message;
+      return;
+    } finally { target.saving = false; }
+    await refresh();
+    if (target !== shoppingIconTarget) return;
+  } else {
     // A refresh can render the add form while the picker is open.
     const current = button.isConnected ? button : $('addItem')?.querySelector('[data-shop-icon]');
     if (!current) return;
