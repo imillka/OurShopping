@@ -330,13 +330,25 @@ body:has(.meals-list-view), body:has(.meal-page-view) { background: #f8f8fc; }
   .meal-tile .meal-heart { left: calc(34% - 18px); }
 }
 
+
+.launch-view { min-height: 52vh; display: grid; align-content: center; justify-items: center; gap: 10px; text-align: center; }
+.launch-view img { width: 58px; height: 58px; border-radius: 16px; }
+.launch-view p { margin: 0; color: #4d566f; }
+.sync-status { margin: 0 0 10px; padding: 7px 10px; border-radius: 9px; color: #534716; background: #fff3cb; font-size: 12px; }
+.sync-status[hidden] { display: none; }
 </style>
 </head>
 <body>
 <main>
-<div id="auth" class="card"><h1>🛒 Наши покупки</h1><p class="muted">Общие планы, блюда и покупки — в одном месте.</p><form id="authForm"><label>Электронная почта</label><input id="email" type="email" autocomplete="email" required><label>Пароль</label><input id="password" type="password" autocomplete="current-password" minlength="6" required><button class="btn" style="width:100%;margin-top:15px">Войти</button></form><p id="authError" class="muted small"></p><p class="small muted">Аккаунты создаются по приглашению администратора.</p></div>
+<div id="launchView" class="launch-view">
+  <img src="./apple-touch-icon.png" alt="">
+  <p id="launchMessage" role="status">Открываем покупки…</p>
+  <button id="retryLaunch" type="button" class="btn alt" onclick="location.reload()" hidden>Повторить</button>
+</div>
+<div id="auth" class="card hidden"><h1>🛒 Наши покупки</h1><p class="muted">Общие планы, блюда и покупки — в одном месте.</p><form id="authForm"><label>Электронная почта</label><input id="email" type="email" autocomplete="email" required><label>Пароль</label><input id="password" type="password" autocomplete="current-password" minlength="6" required><button class="btn" style="width:100%;margin-top:15px">Войти</button></form><p id="authError" class="muted small"></p><p class="small muted">Аккаунты создаются по приглашению администратора.</p></div>
 <div id="app" class="hidden">
   <header class="row between app-header"><h1>Наши покупки</h1><div class="people" id="headerPeople"></div></header>
+  <p id="syncStatus" class="sync-status" role="status" hidden></p>
   <section id="home"></section>
   <section id="shopping" class="hidden"></section>
   <section id="meals" class="hidden"></section>
@@ -402,9 +414,20 @@ body:has(.meals-list-view), body:has(.meal-page-view) { background: #f8f8fc; }
     </div>
   </form>
 </dialog>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(error => console.warn('Офлайн-режим пока недоступен:', error.message));
+  }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
 <script type="module">
-import {createClient} from 'https://esm.sh/@supabase/supabase-js@2';
-const sb=createClient('https://jqvgvaoihmwwopamqobx.supabase.co','sb_publishable_atkJptARPDCq_JxYMKUveA_oPbCjQuR',{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+if (!globalThis.supabase?.createClient) {
+  document.getElementById('launchMessage').textContent = 'Не удалось открыть приложение. Попробуй ещё раз с интернетом.';
+  document.getElementById('retryLaunch').hidden = false;
+  throw new Error('Supabase SDK is unavailable');
+}
+const {createClient} = globalThis.supabase;
+const sb=createClient('https://jqvgvaoihmwwopamqobx.supabase.co','sb_publishable_atkJptARPDCq_JxYMKUveA_oPbCjQuR',{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'sb-jqvgvaoihmwwopamqobx-auth-token'}});
 const $=id=>document.getElementById(id);const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));let user=null,space=null,items=[],meals=[],members=[],tab='home',channel=null;
 const nameOf=id=>members.find(m=>m.user_id===id)?.display_name||'Участник';
 const icons = {
@@ -441,30 +464,23 @@ document.querySelectorAll('[data-tab]').forEach(button => {
   button.insertAdjacentHTML('afterbegin', icon(button.dataset.tab));
   button.onclick = () => showTab(button.dataset.tab);
 });
-$('authForm').onsubmit=async e=>{e.preventDefault();$('authError').textContent='Входим…';const {error}=await sb.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});$('authError').textContent=error?error.message:'';if(!error)await init()};
+$('authForm').onsubmit=async e=>{e.preventDefault();$('authError').textContent='Входим…';const {error}=await sb.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});$('authError').textContent=error?error.message:'';if(!error){showLaunchState('launch');await init()}};
 let purchaseFilter = 'all';
 let purchaseOrder = 'purchased';
 let refreshVersion = 0;
 let popoverId = null;
 
-async function loadSpace() {
-  const {data, error} = await sb.from('space_members')
-    .select('space_id,spaces(id,name)').eq('user_id', user.id).limit(1);
-  if (error) {
-    alert(error.message);
-    return;
-  }
-  space = data?.[0]?.spaces || null;
-}
+let subscribedWorkspace = null;
 
 async function subscribeToList() {
-  const currentId = space.id;
   if (channel) {
     const previous = channel;
     channel = null;
     await sb.removeChannel(previous);
   }
-  if (space?.id !== currentId || channel) return;
+  if (!space) return;
+  const currentId = space.id;
+  subscribedWorkspace = currentId;
   const onChange = () => { if (space?.id === currentId) void refresh(); };
   channel = sb.channel('shared-' + currentId)
     .on('postgres_changes', {event: '*', schema: 'public', table: 'shopping_items', filter: 'space_id=eq.' + currentId}, onChange)
@@ -474,25 +490,52 @@ async function subscribeToList() {
 }
 
 async function refresh() {
-  if (!space) return;
-  const listId = space.id;
+  const account = user?.id;
+  if (!space || !account || validatedAccount !== account || !navigator.onLine || networkUnavailable) return;
+  const workspace = space;
   const version = ++refreshVersion;
-  const [a,b,c] = await Promise.all([
-    sb.from('shopping_items').select('*').eq('space_id', listId).order('created_at'),
-    sb.from('meals').select('*').eq('space_id', listId).order('created_at'),
-    sb.from('space_members').select('user_id,display_name').eq('space_id', listId).order('display_name')
-  ]);
-  if (listId !== space?.id || version !== refreshVersion) return;
-  for (const result of [a,b,c]) {
-    if (result.error) {
-      alert(result.error.message);
-      return;
-    }
+  let results;
+  try {
+    results = await Promise.all([
+      sb.from('shopping_items').select('*').eq('space_id', workspace.id).order('created_at'),
+      sb.from('meals').select('*').eq('space_id', workspace.id).order('created_at'),
+      sb.from('space_members').select('user_id,display_name').eq('space_id', workspace.id).order('display_name')
+    ]);
+  } catch (error) {
+    if (user?.id === account && version === refreshVersion) setConnectionUnavailable(true);
+    return;
   }
-  items = a.data || [];
-  meals = b.data || [];
-  members = (c.data || []).sort((a, b) => Number(a.display_name.startsWith('❤')) - Number(b.display_name.startsWith('❤')));
-  render();
+  if (user?.id !== account || workspace.id !== space?.id || version !== refreshVersion) return;
+  const failed = results.find(result => result.error);
+  if (failed) {
+    if (isNetworkFailure({...failed.error, status: failed.status}) || [401, 403].includes(failed.status)) {
+      setConnectionUnavailable(true);
+    } else {
+      syncIssue = true;
+      publishSyncStatus();
+    }
+    return;
+  }
+  const [purchases, dishes, people] = results;
+  const snapshot = {
+    space: workspace,
+    items: purchases.data || [],
+    meals: dishes.data || [],
+    members: (people.data || []).sort((a, b) => Number(a.display_name.startsWith('❤')) - Number(b.display_name.startsWith('❤')))
+  };
+  const prevPaths = offlineState.snapshot?.meals.map(meal => meal.photo_path).filter(Boolean) || [];
+  const persisted = await mutateAccount(account, state => { state.snapshot = snapshot; }).catch(() => null);
+  if (user?.id !== account || workspace.id !== space?.id || version !== refreshVersion) return;
+  offlineState = persisted || {...offlineState, snapshot};
+  applySavedPurchases();
+  const paths = new Set(snapshot.meals.map(meal => meal.photo_path));
+  const unused = prevPaths.filter(path => !paths.has(path));
+  if (unused.length) {
+    void storeRequest('photos', 'readwrite', store => {
+      for (const path of unused) store.delete(photoKey(account, path));
+    }).catch(() => {});
+  }
+  cacheAllMealPhotos();
 }
 
 function showPopover(id) {
@@ -583,7 +626,7 @@ function renderHome(groups, done, pct) {
     }
   });
   $('goShopping').onclick = () => showTab('shopping');
-  $('logout').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+  $('logout').onclick = signOutFromApp;
   $('newProduct').onclick = () => {
     $('addProductError').textContent = '';
     $('addProductForm').reset();
@@ -870,8 +913,10 @@ async function mealPhotoUrl(path) {
   const entry = {};
   entry.promise = (async () => {
     try {
-      const {data, error} = await sb.storage.from(mealPhotoBucket).download(path);
-      if (error || !data || mealPhotoCache.get(path) !== entry) return null;
+      const account = user?.id;
+      if (!account) return null;
+      const data = await downloadMealPhoto(account, path);
+      if (!data || mealPhotoCache.get(path) !== entry || user?.id !== account) return null;
       entry.url = URL.createObjectURL(data);
       return entry.url;
     } catch {
@@ -1006,6 +1051,7 @@ async function removeMealPhotoFile(path) {
     console.warn('Не удалось удалить старое фото блюда:', error.message);
   }
   releaseMealPhoto(path);
+  if (user) await storeRequest('photos', 'readwrite', store => store.delete(photoKey(user.id, path))).catch(() => {});
 }
 
 $('mealDetailsForm').onsubmit = async event => {
@@ -1014,7 +1060,7 @@ $('mealDetailsForm').onsubmit = async event => {
   const errorText = $('mealDetailsError');
   const submit = $('saveMealDetails');
   const cancel = $('cancelMealDetails');
-  if (!draft || submit.disabled || !space) return;
+  if (!draft || submit.disabled || !space || mutationNeedsInternet()) return;
   if (!meals.some(meal => meal.id === draft.id)) {
     errorText.textContent = 'Это блюдо уже удалено.';
     return;
@@ -1380,7 +1426,7 @@ $('meals').addEventListener('click', async event => {
     return;
   }
   const remove = event.target.closest('[data-remove-ingredient]');
-  if (!remove || !confirm('Удалить ингредиент из блюда и покупок?')) return;
+  if (!remove || mutationNeedsInternet() || !confirm('Удалить ингредиент из блюда и покупок?')) return;
   remove.disabled = true;
   try {
     const {error} = await sb.from('shopping_items').delete().eq('space_id', space.id)
@@ -1410,6 +1456,7 @@ $('setPriceDialog').addEventListener('cancel', event => {
 });
 $('setPriceForm').onsubmit = async event => {
   event.preventDefault();
+  if (mutationNeedsInternet()) return;
   const form = event.currentTarget;
   const item = items.find(row => row.id === form.dataset.itemId);
   if (!item) {
@@ -1438,18 +1485,7 @@ $('setPriceForm').onsubmit = async event => {
 };
 
 async function updatePurchased(checkbox) {
-  const checked = checkbox.checked;
-  const ids = checkbox.dataset.check.split(',');
-  checkbox.disabled = true;
-  const {error} = await sb.from('shopping_items')
-    .update({purchased: checked, purchased_by: checked ? user.id : null, purchased_at: checked ? new Date().toISOString() : null})
-    .eq('space_id', space.id).eq('purchased', !checked).in('id', ids);
-  if (error) {
-    alert(error.message);
-    render();
-  }
-  await refresh();
-  checkbox.disabled = false;
+  await queuePurchase(checkbox);
 }
 
 const pendingForms = new Set();
@@ -1464,7 +1500,7 @@ function bindPurchaseForms() {
     submit.disabled = pendingForms.has(key);
     form.onsubmit = async event => {
       event.preventDefault();
-      if (pendingForms.has(key)) return;
+      if (pendingForms.has(key) || mutationNeedsInternet()) return;
       pendingForms.add(key);
       submit.disabled = true;
       try {
@@ -1514,7 +1550,7 @@ function bindPurchaseForms() {
   document.querySelectorAll('[data-del], [data-mealdel]').forEach(button => {
     button.onclick = async () => {
       const isMeal = Boolean(button.dataset.mealdel);
-      if (!confirm(isMeal ? 'Удалить блюдо? Ингредиенты останутся в покупках.' : 'Удалить покупку?')) return;
+      if (mutationNeedsInternet() || !confirm(isMeal ? 'Удалить блюдо? Ингредиенты останутся в покупках.' : 'Удалить покупку?')) return;
       const id = button.dataset.mealdel || button.dataset.del;
       const deletion = sb.from(isMeal ? 'meals' : 'shopping_items').delete().eq('space_id', space.id).eq('id', id);
       const {data, error} = await (isMeal ? deletion.select('*') : deletion);
@@ -1568,6 +1604,7 @@ $('addProductDialog').addEventListener('cancel', event => {
 });
 $('addProductForm').onsubmit = async event => {
   event.preventDefault();
+  if (mutationNeedsInternet()) return;
   $('addProductError').textContent = '';
   $('submitProduct').disabled = true;
   $('cancelProduct').disabled = true;
@@ -1590,20 +1627,6 @@ $('addProductForm').onsubmit = async event => {
   }
 };
 
-async function init() {
-  const {data: {user: currentUser}} = await sb.auth.getUser();
-  user = currentUser;
-  $('auth').classList.toggle('hidden', !!user);
-  $('app').classList.toggle('hidden', !user);
-  $('nav').classList.toggle('hidden', !user);
-  if (!user) return;
-  loadMealPreferences();
-  await loadSpace();
-  if (space) {
-    await subscribeToList();
-    if (currentMealId()) showTab('meals');
-  } else render();
-}
 function sectionHeading(iconName, title, badge = '') {
   return `<div class="section-heading">
     <h2 class="section-title">${icon(iconName)} ${escape(title)}</h2>
@@ -1611,7 +1634,7 @@ function sectionHeading(iconName, title, badge = '') {
   </div>`;
 }
 
-function render(){if(!user)return;if(!space){$('headerPeople').innerHTML='';$('home').innerHTML='<div class="card"><h2>Ждём приглашения 💌</h2><p>Аккаунт создан, но ещё не добавлен в общее пространство. Попросите администратора добавить участника.</p><button class="btn alt" id="logout">Выйти</button></div>';$('logout').onclick=async()=>{await sb.auth.signOut();location.reload()};for(const id of ['shopping','meals','budget'])$(id).innerHTML='';return}
+function render(){if(!user)return;if(!space){$('headerPeople').innerHTML='';$('home').innerHTML='<div class="card"><h2>Ждём приглашения 💌</h2><p>Аккаунт создан, но ещё не добавлен в общее пространство. Попросите администратора добавить участника.</p><button class="btn alt" id="logout">Выйти</button></div>';$('logout').onclick=signOutFromApp;for(const id of ['shopping','meals','budget'])$(id).innerHTML='';return}
   const drafts = snapshotDrafts();
   const groups = groupProducts(items);
   const done = groups.filter(group => group.purchased).length;
@@ -1630,7 +1653,441 @@ function render(){if(!user)return;if(!space){$('headerPeople').innerHTML='';$('h
   restoreDrafts(drafts);
   bindPurchaseForms();
 }
-sb.auth.onAuthStateChange((event)=>{if(event==='SIGNED_OUT'){user=null;mealPhotoObserver?.disconnect();for(const path of mealPhotoCache.keys())releaseMealPhoto(path);$('auth').classList.remove('hidden');$('app').classList.add('hidden');$('nav').classList.add('hidden')}});init();
+const authStorageKey = 'sb-jqvgvaoihmwwopamqobx-auth-token';
+function rememberedAccount() {
+  try {
+    const session = JSON.parse(localStorage.getItem(authStorageKey));
+    return session?.refresh_token ? session.user?.id || null : null;
+  } catch {
+    return null;
+  }
+}
+
+let storagePromise;
+function offlineDatabase() {
+  if (storagePromise) return storagePromise;
+  storagePromise = new Promise((resolve, reject) => {
+    const request = indexedDB.open('our-shopping-offline', 1);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore('accounts');
+      request.result.createObjectStore('photos');
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+    request.onblocked = () => reject(new Error('Хранилище недоступно'));
+  }).catch(error => {
+    storagePromise = null;
+    throw error;
+  });
+  return storagePromise;
+}
+
+async function storeRequest(storeName, mode, work) {
+  const db = await offlineDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(storeName, mode);
+    const store = transaction.objectStore(storeName);
+    let result;
+    transaction.oncomplete = () => resolve(result);
+    transaction.onabort = () => reject(transaction.error || new Error('Не удалось сохранить данные'));
+    work(store, value => { result = value; });
+  });
+}
+
+function readSaved(storeName, key) {
+  return storeRequest(storeName, 'readonly', (store, done) => {
+    const request = store.get(key);
+    request.onsuccess = () => done(request.result);
+  });
+}
+
+function mutateAccount(account, change) {
+  return storeRequest('accounts', 'readwrite', (store, done) => {
+    const request = store.get(account);
+    request.onsuccess = () => {
+      const state = request.result || {snapshot: null, pending: {}};
+      change(state);
+      store.put(state, account);
+      done(state);
+    };
+  });
+}
+
+const emptyOfflineState = () => ({snapshot: null, pending: {}});
+let offlineState = emptyOfflineState();
+let validatedAccount = null;
+let networkUnavailable = !navigator.onLine;
+let connectPromise = null;
+let flushPromise = null;
+let syncIssue = false;
+let sessionGeneration = 0;
+let photoWarming = null;
+const photoDownloads = new Map();
+const photoKey = (account, path) => account + '/' + path;
+
+function pendingPurchases() {
+  return Object.values(offlineState.pending).filter(entry => entry.spaceId === space?.id);
+}
+
+function publishSyncStatus() {
+  const status = $('syncStatus');
+  if (!status) return;
+  const count = pendingPurchases().length;
+  const offline = networkUnavailable || !navigator.onLine;
+  status.textContent = [
+    offline ? 'Офлайн' : syncIssue ? 'Не удалось синхронизировать' : '',
+    count ? 'К отправке: ' + count : ''
+  ].filter(Boolean).join(' · ');
+  status.hidden = !status.textContent;
+}
+
+function setConnectionUnavailable(unavailable) {
+  networkUnavailable = unavailable;
+  if (unavailable) validatedAccount = null;
+  publishSyncStatus();
+}
+
+function mutationNeedsInternet() {
+  if (!networkUnavailable && navigator.onLine && validatedAccount === user?.id) return false;
+  alert('Для этого действия нужен интернет. Галочки в покупках можно менять офлайн.');
+  return true;
+}
+
+function applySavedPurchases(shouldRender = true) {
+  const snapshot = offlineState.snapshot;
+  if (!snapshot || snapshot.space.id !== space?.id) return;
+  items = snapshot.items.map(item => {
+    const entry = offlineState.pending[item.id];
+    if (!entry || entry.spaceId !== space.id || item.purchased === entry.checked) return item;
+    return {
+      ...item,
+      purchased: entry.checked,
+      purchased_by: entry.checked ? user.id : null,
+      purchased_at: entry.checked ? entry.purchasedAt : null
+    };
+  });
+  meals = snapshot.meals;
+  members = snapshot.members;
+  publishSyncStatus();
+  if (shouldRender) render();
+}
+
+function isNetworkFailure(error) {
+  const status = Number(error?.status || 0);
+  return navigator.onLine === false || status >= 500 || error?.name === 'AuthRetryableFetchError'
+    || /(?:failed to fetch|network|load failed|fetch failed|timed out|abort|timeout)/i.test(error?.message || '');
+}
+
+function showLaunchState(mode, text = '') {
+  $('launchView').classList.toggle('hidden', mode !== 'launch');
+  $('launchMessage').textContent = text || 'Открываем покупки…';
+  $('retryLaunch').hidden = !text;
+  $('auth').classList.toggle('hidden', mode !== 'login');
+  $('app').classList.toggle('hidden', mode !== 'app');
+  $('nav').classList.toggle('hidden', mode !== 'app');
+}
+
+function openAccountView() {
+  showLaunchState('app');
+  if (currentMealId() && tab !== 'meals') showTab('meals');
+  else render();
+  publishSyncStatus();
+}
+
+function useCachedAccount(account, state) {
+  if (!state?.snapshot || rememberedAccount() !== account) return false;
+  user = {id: account};
+  offlineState = state;
+  space = state.snapshot.space;
+  loadMealPreferences();
+  applySavedPurchases(false);
+  openAccountView();
+  return true;
+}
+
+async function clearLocalAccount(account) {
+  if (!account) return;
+  await Promise.allSettled([
+    storeRequest('accounts', 'readwrite', store => store.delete(account)),
+    storeRequest('photos', 'readwrite', store => {
+      const prefix = account + '/';
+      store.delete(IDBKeyRange.bound(prefix, prefix + '\uffff'));
+    })
+  ]);
+}
+
+function resetAccountView() {
+  sessionGeneration += 1;
+  validatedAccount = null;
+  user = space = null;
+  offlineState = emptyOfflineState();
+  items = meals = members = [];
+  syncIssue = false;
+  mealPhotoObserver?.disconnect();
+  for (const path of mealPhotoCache.keys()) releaseMealPhoto(path);
+  if ($('mealDetailsDialog').open) $('mealDetailsDialog').close();
+  if (channel) {
+    const previous = channel;
+    channel = null;
+    void sb.removeChannel(previous);
+  }
+  showLaunchState('login');
+}
+
+async function signOutFromApp() {
+  const account = user?.id;
+  if (pendingPurchases().length && !confirm('На телефоне есть неотправленные отметки. При выходе они будут удалены. Выйти?')) return;
+  const {error} = await sb.auth.signOut();
+  if (error) {
+    alert(error.message);
+    return;
+  }
+  await clearLocalAccount(account);
+  location.reload();
+}
+
+function purchasePatch(entry, account) {
+  return {
+    purchased: entry.checked,
+    purchased_by: entry.checked ? account : null,
+    purchased_at: entry.checked ? entry.purchasedAt : null
+  };
+}
+
+function sendPurchase(entry, account, ids) {
+  return sb.from('shopping_items').update(purchasePatch(entry, account))
+    .eq('space_id', entry.spaceId).eq('purchased', !entry.checked).in('id', ids)
+    .select('id,purchased,purchased_by,purchased_at');
+}
+
+async function flushPurchases() {
+  if (flushPromise) return flushPromise;
+  const account = user?.id;
+  if (!account || validatedAccount !== account || !space || !navigator.onLine || networkUnavailable) return;
+  const workspace = space.id;
+  const work = async () => {
+    let sent = false;
+    while (user?.id === account && validatedAccount === account && space?.id === workspace) {
+      const saved = await readSaved('accounts', account).catch(() => null);
+      if (!saved) return sent;
+      const pending = Object.values(saved.pending).filter(entry => entry.spaceId === workspace);
+      if (!pending.length) return sent;
+      const first = pending[0];
+      const batch = pending.filter(entry => entry.operationId === first.operationId).slice(0, 40);
+      const {data, error} = await sendPurchase(first, account, batch.map(entry => entry.id));
+      if (error) {
+        if (isNetworkFailure(error)) setConnectionUnavailable(true);
+        else syncIssue = true;
+        publishSyncStatus();
+        return sent;
+      }
+      if (user?.id !== account) return sent;
+      refreshVersion += 1;
+      const returned = new Map((data || []).map(row => [row.id, row]));
+      const reconciled = await mutateAccount(account, state => {
+        for (const entry of batch) {
+          if (state.pending[entry.id]?.operationId === entry.operationId) delete state.pending[entry.id];
+        }
+        if (state.snapshot?.space.id === workspace) {
+          state.snapshot.items = state.snapshot.items.map(item => returned.has(item.id) ? {...item, ...returned.get(item.id)} : item);
+        }
+      });
+      if (user?.id !== account) return sent;
+      offlineState = reconciled;
+      syncIssue = false;
+      sent = true;
+      applySavedPurchases();
+    }
+    return sent;
+  };
+  const run = async () => {
+    try {
+      const sent = navigator.locks
+        ? await navigator.locks.request('our-shopping-purchases-' + account, work)
+        : await work();
+      if (sent && validatedAccount === account) await refresh();
+    } catch (error) {
+      if (isNetworkFailure(error)) setConnectionUnavailable(true);
+      else syncIssue = true;
+      publishSyncStatus();
+    }
+  };
+  flushPromise = run().finally(() => { flushPromise = null; });
+  return flushPromise;
+}
+
+async function queuePurchase(checkbox) {
+  const account = user?.id;
+  if (!account || !space) return;
+  const checked = checkbox.checked;
+  const ids = checkbox.dataset.check.split(',');
+  const entry = {checked, spaceId: space.id, operationId: crypto.randomUUID(), purchasedAt: new Date().toISOString()};
+  checkbox.disabled = true;
+  try {
+    const next = await mutateAccount(account, state => {
+      state.snapshot ||= offlineState.snapshot;
+      for (const id of ids) state.pending[id] = {...entry, id};
+    });
+    if (user?.id !== account) return;
+    offlineState = next;
+    applySavedPurchases();
+    void flushPurchases();
+  } catch {
+    if (networkUnavailable || !navigator.onLine || validatedAccount !== account) {
+      alert('Не удалось сохранить отметку на телефоне.');
+      render();
+      return;
+    }
+    const {error} = await sendPurchase(entry, account, ids);
+    if (error) alert(error.message);
+    await refresh();
+    if (error) render();
+  } finally {
+    checkbox.disabled = false;
+  }
+}
+
+async function downloadMealPhoto(account, path) {
+  const key = photoKey(account, path);
+  if (photoDownloads.has(key)) return photoDownloads.get(key);
+  const download = (async () => {
+    const cached = await readSaved('photos', key).catch(() => null);
+    if (cached || user?.id !== account) return cached;
+    if (networkUnavailable || !navigator.onLine || validatedAccount !== account) return null;
+    const {data, error} = await sb.storage.from(mealPhotoBucket).download(path);
+    if (error || !data || user?.id !== account) return null;
+    const stillUsed = meals.some(meal => meal.photo_path === path);
+    if (stillUsed) {
+      await storeRequest('photos', 'readwrite', store => store.put(data, key)).catch(() => {});
+    }
+    return data;
+  })().finally(() => photoDownloads.delete(key));
+  photoDownloads.set(key, download);
+  return download;
+}
+
+function cacheAllMealPhotos() {
+  if (photoWarming || !user || networkUnavailable || validatedAccount !== user.id) return;
+  const account = user.id;
+  const paths = [...new Set(meals.map(meal => meal.photo_path).filter(Boolean))];
+  if (!paths.length) return;
+  let offset = 0;
+  const fill = async () => {
+    while (offset < paths.length && user?.id === account && !networkUnavailable) {
+      const path = paths[offset++];
+      await downloadMealPhoto(account, path).catch(() => null);
+    }
+  };
+  photoWarming = Promise.all(Array.from({length: Math.min(3, paths.length)}, fill))
+    .finally(() => {
+      photoWarming = null;
+      if (user?.id === account && meals.some(meal => meal.photo_path && !paths.includes(meal.photo_path))) cacheAllMealPhotos();
+    });
+}
+
+async function connectAccount() {
+  if (connectPromise) return connectPromise;
+  if (!navigator.onLine) {
+    setConnectionUnavailable(true);
+    if (!user) showLaunchState('launch', 'Для первого входа или загрузки списка нужен интернет.');
+    return;
+  }
+  const generation = sessionGeneration;
+  const run = async () => {
+    try {
+      const {data, error} = await sb.auth.getUser();
+      if (generation !== sessionGeneration) return;
+      const account = data?.user;
+      if (error) {
+        if (isNetworkFailure(error)) throw error;
+        if (error.name !== 'AuthSessionMissingError' && ![400, 401, 403].includes(error.status)) throw error;
+      }
+      if (!account || error) {
+        resetAccountView();
+        return;
+      }
+      const membership = await sb.from('space_members').select('space_id,spaces(id,name)').eq('user_id', account.id).limit(1);
+      if (generation !== sessionGeneration) return;
+      if (membership.error) throw {...membership.error, status: membership.status};
+      const workspace = membership.data?.[0]?.spaces || null;
+      const saved = await readSaved('accounts', account.id).catch(() => null);
+      if (generation !== sessionGeneration) return;
+      const switched = user?.id !== account.id || space?.id !== workspace?.id;
+      const firstView = switched || $('app').classList.contains('hidden');
+      user = account;
+      space = workspace;
+      validatedAccount = account.id;
+      setConnectionUnavailable(false);
+      if (switched) {
+        items = meals = members = [];
+        loadMealPreferences();
+        for (const path of mealPhotoCache.keys()) releaseMealPhoto(path);
+      }
+      offlineState = saved || (!switched ? offlineState : emptyOfflineState());
+      if (offlineState.snapshot?.space.id !== space?.id || !space) {
+        offlineState = {...offlineState, snapshot: null};
+        if (saved?.snapshot) {
+          await mutateAccount(account.id, state => { state.snapshot = null; }).catch(() => {});
+        }
+      }
+      if (generation !== sessionGeneration) return;
+      if (!space) {
+        openAccountView();
+        return;
+      }
+      if (offlineState.snapshot) applySavedPurchases(false);
+      if (firstView && offlineState.snapshot) openAccountView();
+      if (subscribedWorkspace !== space.id || switched) await subscribeToList();
+      else await refresh();
+      if (generation !== sessionGeneration) return;
+      if (firstView && $('app').classList.contains('hidden')) {
+        if (offlineState.snapshot) openAccountView();
+        else showLaunchState('launch', 'Не удалось загрузить список. Попробуй снова с интернетом.');
+      }
+      void flushPurchases();
+    } catch (error) {
+      if (generation !== sessionGeneration) return;
+      const offline = isNetworkFailure(error);
+      setConnectionUnavailable(offline);
+      if (!user || $('app').classList.contains('hidden')) {
+        showLaunchState('launch', offline ? 'Не удалось подключиться. Попробуй снова с интернетом.' : 'Не удалось открыть список. Попробуй ещё раз.');
+      } else if (!offline) {
+        syncIssue = true;
+        publishSyncStatus();
+      }
+    }
+  };
+  connectPromise = run().finally(() => { connectPromise = null; });
+  return connectPromise;
+}
+
+async function init() {
+  const account = rememberedAccount();
+  if (account) {
+    const saved = await readSaved('accounts', account).catch(() => null);
+    useCachedAccount(account, saved);
+  }
+  await connectAccount();
+}
+
+$('retryLaunch').onclick = () => { void connectAccount(); };
+window.addEventListener('online', () => { void connectAccount(); });
+window.addEventListener('offline', () => setConnectionUnavailable(true));
+window.addEventListener('pageshow', event => { if (event.persisted) void connectAccount(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && (user || rememberedAccount())) void connectAccount();
+});
+setInterval(() => {
+  if (document.visibilityState !== 'visible' || !user || !navigator.onLine) return;
+  if (networkUnavailable || validatedAccount !== user.id) void connectAccount();
+  else if (pendingPurchases().length) void flushPurchases();
+}, 5000);
+
+sb.auth.onAuthStateChange(event => {
+  if (event === 'SIGNED_OUT') resetAccountView();
+});
+
+void init();
 </script>
 </body>
 </html>
