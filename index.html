@@ -336,6 +336,46 @@ body:has(.meals-list-view), body:has(.meal-page-view) { background: #f8f8fc; }
 .launch-view p { margin: 0; color: #4d566f; }
 .sync-status { margin: 0 0 10px; padding: 7px 10px; border-radius: 9px; color: #534716; background: #fff3cb; font-size: 12px; }
 .sync-status[hidden] { display: none; }
+#shopping :is(button,select,a) { -webkit-tap-highlight-color: transparent; }
+body:has(#shopping:not(.hidden)) #app:not(.hidden) { color: #0a1226; }
+body:has(#app:not(.hidden) #shopping:not(.hidden)) { background: #f4f6fd; }
+#shopping .shop-card { border-radius: 21px; padding: 12px; background: #ffffffb5; border-color: #e4eafb; }
+.shop-name-line { display: grid; grid-template-columns: 42px minmax(0,1fr); align-items: center; gap: 10px; }
+.shop-icon { border: 0; background: transparent; border-radius: 11px; padding: 0; min-width: 34px; min-height: 36px; font-size: 25px; }
+.shop-name-line .shop-icon { background: #deebff; width: 42px; height: 42px; }
+.shop-add-grid { display: grid; grid-template-columns: 1.15fr .9fr 1fr; gap: 8px; align-items: start; }
+.shop-add-grid label, .shop-add-grid .quantity-field { margin: 0; min-width: 0; font-size: 13px; }
+.shop-add-grid input,.shop-add-grid select { width: 100%; padding-inline: 7px; }
+.shop-add-grid select { background: #ebf2ff; min-height: 43px; }
+.shop-add-grid .quantity-stepper { display: grid; grid-template-columns: 1fr 1fr 1fr; }
+.shop-add-grid .quantity-stepper input { padding: 2px; }
+.shop-add-grid .field-label { margin-bottom: 7px; }
+.shop-bottom { display: flex; justify-content: space-between; align-items: end; gap: 7px; margin-top: 9px; }
+.shop-bottom fieldset { min-width: 0; border: 0; padding: 0; margin: 0; }
+.shop-bottom legend { font-size: 13px; font-weight: 650; margin-bottom: 5px; }
+.shop-segment { display: flex; padding: 3px; border-radius: 18px; background: #e7effd; }
+.shop-segment label { position: relative; margin: 0; }
+.shop-segment input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.shop-segment span { display: block; padding: 8px 9px; border-radius: 15px; font-size: 12px; white-space: nowrap; }
+.shop-segment input:checked + span { background: #0672f9; color: white; }
+.shop-segment input:focus-visible + span { outline: 2px solid #0954a8; }
+.shop-bottom .btn { background: #d4e5ff; padding: 10px 12px; white-space: nowrap; }
+#shopping .shop-list { padding: 5px 8px; }
+#shopping .purchase-entry { gap: 6px; align-items: center; }
+#shopping .purchase-group { padding: 10px 0; }
+#shopping .purchase-entry .itemname { font-weight: 740; font-size: clamp(13px,3.7vw,17px); }
+#shopping .purchase-entry .check { width: 21px; height: 21px; }
+.shop-quantity-edit { display: flex; flex: none; align-items: center; gap: 4px; }
+.shop-quantity-edit :is(input,select) { padding: 4px 3px; margin: 0; min-height: 32px; border-radius: 10px; width: 45px; text-align: center; }
+.shop-quantity-edit select { width: 49px; }
+.shop-read-quantity { color: #28364f; font-size: 12px; text-align: right; }
+#shopping .price-link { padding: 0; text-align: left; min-height: 25px; font-size: 12px; }
+#shoppingIconsDialog { border: 1px solid #e3eafb; border-radius: 19px; padding: 17px; width: min(360px,calc(100% - 28px)); }
+#shoppingIconsDialog::backdrop { background: #14224055; }
+#shoppingIconChoices { display: grid; grid-template-columns: repeat(6,1fr); gap: 5px; margin: 0 0 12px; }
+#shoppingIconChoices button { border: 0; border-radius: 10px; background: #f0f5ff; font-size: 23px; min-height: 36px; padding: 0; }
+#shoppingIconChoices button[aria-pressed="true"] { outline: 2px solid #0971f7; }
+
 </style>
 </head>
 <body>
@@ -413,6 +453,11 @@ body:has(.meals-list-view), body:has(.meal-page-view) { background: #f8f8fc; }
       <button type="submit" class="btn" id="saveMealDetails">Сохранить</button>
     </div>
   </form>
+</dialog>
+<dialog id="shoppingIconsDialog" aria-labelledby="shoppingIconTitle">
+  <h2 id="shoppingIconTitle">Иконка товара</h2>
+  <div id="shoppingIconChoices"></div>
+  <button type="button" class="btn alt" id="closeShoppingIcons">Закрыть</button>
 </dialog>
 <script>
   if ('serviceWorker' in navigator) {
@@ -812,14 +857,17 @@ async function insertPurchase(form, mealId = null) {
   }
   const {price, message} = priceFrom(fields, quantity);
   if (message) return {error: {message}};
-  return sb.from('shopping_items').insert({
+  const unit = String(fields.get('unit') || '');
+  const result = await sb.from('shopping_items').insert({
     space_id: space.id,
     meal_id: mealId,
     name,
-    quantity: String(quantity),
+    quantity: quantityText(quantity, shoppingUnits.some(([value]) => value === unit) ? unit : ''),
     price,
     created_by: user.id
   }).select('id').single();
+  if (!result.error) saveShoppingIcon(name, fields.get('productIcon'));
+  return result;
 }
 
 function shoppingPortion(item) {
@@ -832,6 +880,7 @@ function shoppingPortion(item) {
         <div>${escape(mealName)} · ${escape(quantityLabel([item]))}</div>
         ${item.purchased ? `<div class="muted small">Купил(а): ${escape(nameOf(item.purchased_by))}</div>` : ''}
       </div>
+      ${quantityEditor(item)}
     </div>
     <div class="portion-actions">
       <button type="button" class="btn alt" data-price-item="${escape(item.id)}" ${canEditPrice ? '' : 'disabled title="Цену может изменить тот, кто отметил покупку"'}>${item.price == null ? 'Указать цену' : money(item.price)}</button>
@@ -839,6 +888,108 @@ function shoppingPortion(item) {
     </div>
   </div>`;
 }
+
+const shoppingUnits = [['','шт.'],['г','г'],['кг','кг'],['мл','мл'],['л','л'],['уп','уп.'],['б','банка']];
+const shoppingIcons = ['🛍️','🍆','🍅','🥬','🥣','🥚','🧄','🍞','🥛','🧀','🍗','🐟','🥩','🥔','🥕','🥒','🧅','🌶️','🍄','🍏','🍋','🍌','🍓','🍚','🍝','🫘','🧈','🧂','🍫','🍯','🫙','🧃','💧','☕'];
+const suggestedIcons = [
+  [/баклаж/, '🍆'], [/томат|помидор/, '🍅'], [/салат|зелень|шпинат/, '🥬'],
+  [/сухар|паниров|круп/, '🥣'], [/яйц|яиц/, '🥚'], [/чеснок/, '🧄'],
+  [/хлеб|батон/, '🍞'], [/молок|кефир/, '🥛'], [/сыр/, '🧀'],
+  [/карто/, '🥔'], [/морков/, '🥕'], [/огур/, '🥒'], [/лук/, '🧅'], [/рыб|шпрот|кильк/, '🐟']
+];
+function iconStoreKey() {
+  return 'our-shopping-product-icons-' + space?.id;
+}
+function readShoppingIcons() {
+  try { return JSON.parse(localStorage.getItem(iconStoreKey())) || {}; }
+  catch { return {}; }
+}
+function shoppingIcon(name) {
+  const key = productKey(name);
+  const stored = readShoppingIcons()[key];
+  return shoppingIcons.includes(stored) ? stored : suggestedIcons.find(([match]) => match.test(key))?.[1] || '🛍️';
+}
+function saveShoppingIcon(name, glyph) {
+  if (!name || !shoppingIcons.includes(glyph)) return;
+  try {
+    const values = readShoppingIcons();
+    Object.defineProperty(values, productKey(name), {value:glyph,enumerable:true,configurable:true,writable:true});
+    localStorage.setItem(iconStoreKey(), JSON.stringify(values));
+  } catch {
+    alert('Не удалось сохранить иконку на устройстве.');
+  }
+}
+let shoppingIconTarget;
+function openShoppingIcons(button, name) {
+  shoppingIconTarget = {button, name};
+  $('shoppingIconChoices').innerHTML = shoppingIcons.map(glyph =>
+    `<button type="button" data-glyph="${glyph}" aria-pressed="${glyph === button.textContent.trim()}">${glyph}</button>`
+  ).join('');
+  $('shoppingIconsDialog').showModal();
+}
+$('shoppingIconChoices').onclick = event => {
+  const chosen = event.target.closest('[data-glyph]');
+  if (!chosen || !shoppingIconTarget) return;
+  const {button, name} = shoppingIconTarget;
+  const glyph = chosen.dataset.glyph;
+  if (name) saveShoppingIcon(name, glyph);
+  else {
+    button.textContent = glyph;
+    button.form.elements.namedItem('productIcon').value = glyph;
+  }
+  $('shoppingIconsDialog').close();
+  if (name) render();
+};
+$('closeShoppingIcons').onclick = () => $('shoppingIconsDialog').close();
+
+function unitSelect(selected = '', label = 'Единица') {
+  const units = shoppingUnits.some(([unit]) => unit === selected) ? shoppingUnits : [...shoppingUnits,[selected,selected]];
+  return `<select name="unit" aria-label="${label}">${units.map(([value,text]) =>
+    `<option value="${escape(value)}" ${value === selected ? 'selected' : ''}>${escape(text)}</option>`
+  ).join('')}</select>`;
+}
+function quantityText(amount, unit) {
+  return String(amount) + (unit ? ' ' + unit : '');
+}
+function quantityEditor(item) {
+  const quantity = readQuantity(item.quantity);
+  if (!quantity.amount || (item.purchased_by && item.purchased_by !== user.id)) {
+    return `<span class="shop-read-quantity">${escape(quantityLabel([item]))}</span>`;
+  }
+  return `<form class="shop-quantity-edit" data-shop-quantity="${escape(item.id)}">
+    ${unitSelect(quantity.unit)}
+    <input name="amount" type="number" min="0.01" max="9999" step="any" inputmode="decimal" aria-label="Количество ${escape(item.name)}" required value="${quantity.amount}">
+  </form>`;
+}
+$('shopping').addEventListener('click', event => {
+  const trigger = event.target.closest('[data-shop-icon]');
+  if (trigger) openShoppingIcons(trigger, trigger.dataset.shopIcon);
+});
+$('shopping').addEventListener('change', async event => {
+  const form = event.target.closest('[data-shop-quantity]');
+  if (!form) return;
+  if (mutationNeedsInternet() || !form.reportValidity()) { render(); return; }
+  const item = items.find(row => row.id === form.dataset.shopQuantity);
+  if (!item) return;
+  const next = quantityText(Number(form.elements.namedItem('amount').value), form.elements.namedItem('unit').value);
+  if (next === item.quantity) return;
+  for (const field of form.elements) field.disabled = true;
+  try {
+    let update = sb.from('shopping_items').update({quantity:next}).eq('space_id', space.id).eq('id', item.id);
+    update = item.quantity == null ? update.is('quantity', null) : update.eq('quantity', item.quantity);
+    const {data,error} = await update.select('id');
+    if (error) alert(error.message);
+    else if (!data?.length) alert('Количество уже изменилось. Проверь обновлённый список.');
+    await refresh();
+  } finally {
+    for (const field of form.elements) field.disabled = false;
+  }
+});
+$('shopping').addEventListener('submit', event => {
+  if (!event.target.matches('[data-shop-quantity]')) return;
+  event.preventDefault();
+  event.target.elements.namedItem('amount').blur();
+});
 
 function renderShopping(groups, done) {
   const expanded = new Set(Array.from($('shopping').querySelectorAll('details[open]'), el => el.dataset.purchaseGroup));
@@ -853,13 +1004,14 @@ function renderShopping(groups, done) {
     return `<div class="item purchase-group">
       <div class="row purchase-entry ${group.purchased ? 'done' : ''}">
         ${checkedBox(group)}
+        <button type="button" class="shop-icon" data-shop-icon="${escape(group.name)}" aria-label="Иконка товара ${escape(group.name)}">${shoppingIcon(group.name)}</button>
         <div class="grow">
           <div class="itemname">${escape(group.name)}</div>
-          <div class="muted small">${escape(group.quantity)}${mealName ? ' · ' + escape(mealName) : ''}</div>
+          ${mealName ? `<div class="muted small">${escape(mealName)}</div>` : ''}
           ${status ? `<div class="muted small">${escape(status)}</div>` : ''}
+          ${single ? `<button type="button" class="link price-link" data-price-item="${escape(item.id)}" ${canEditPrice ? '' : 'disabled'}>${item.price == null ? 'Цена' : money(item.price)}</button>` : ''}
         </div>
-        ${single ? `<button type="button" class="link price-link" data-price-item="${escape(item.id)}" ${canEditPrice ? '' : 'disabled title="Цену может изменить тот, кто отметил покупку"'}>${item.price == null ? 'Цена' : money(item.price)}</button>
-          <button type="button" class="link" data-del="${escape(item.id)}" aria-label="Удалить ${escape(group.name)}">✕</button>` : ''}
+        ${single ? `${quantityEditor(item)}<button type="button" class="link" data-del="${escape(item.id)}" aria-label="Удалить ${escape(group.name)}">✕</button>` : `<span class="shop-read-quantity">${escape(group.quantity)}</span>`}
       </div>
       ${single && item.purchased ? `<div class="muted small purchase-buyer">Купил(а): ${escape(nameOf(item.purchased_by))}</div>` : ''}
       ${single ? '' : `<details class="purchase-details" data-purchase-group="${escape(group.id)}" ${expanded.has(group.id) ? 'open' : ''}>
@@ -869,15 +1021,28 @@ function renderShopping(groups, done) {
     </div>`;
   }).join('');
   $('shopping').innerHTML = sectionHeading('shopping', 'Покупки', done + '/' + groups.length) + `
-    <div class="card">
+    <div class="card shop-card">
       <form id="addItem" data-draft>
-        ${productInput('Что купить?')}
-        ${quantityStepper()}
-        ${priceFields()}
-        <button class="btn">+ Добавить</button>
+        <div class="shop-name-line">
+          <button type="button" class="shop-icon" data-shop-icon="" aria-label="Выбрать иконку нового товара">🛍️</button>
+          <input type="hidden" name="productIcon">
+          ${productInput('Что купить?')}
+        </div>
+        <div class="shop-add-grid">
+          ${quantityStepper()}
+          <label>Единица${unitSelect()}</label>
+          <label>Цена, ₽<input name="price" type="number" min="0" max="${priceLimit}" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+        </div>
+        <div class="shop-bottom">
+          <fieldset><legend>Расчёт</legend><div class="shop-segment">
+            <label><input type="radio" name="priceMode" value="total" checked><span>За всё</span></label>
+            <label><input type="radio" name="priceMode" value="unit"><span>За 1 ед.</span></label>
+          </div></fieldset>
+          <button class="btn">+ Добавить</button>
+        </div>
       </form>
     </div>
-    <div class="card">${rows || '<div class="empty">Пока пусто. Добавьте первую покупку!</div>'}</div>`;
+    <div class="card shop-card shop-list">${rows || '<div class="empty">Пока пусто. Добавьте первую покупку!</div>'}</div>`;
 }
 
 const mealPhotoBucket = 'meal-photos';
@@ -1568,7 +1733,7 @@ function snapshotDrafts() {
   return Array.from(document.querySelectorAll('[data-draft]'), form => ({
     id: form.id,
     mealId: form.dataset.ingredient,
-    fields: Array.from(form.elements).filter(field => field.name).map(field => ({
+    fields: Array.from(form.elements).filter(field => field.name && (field.type !== 'radio' || field.checked)).map(field => ({
       name: field.name, value: field.value, focused: document.activeElement === field,
       selectionStart: field.selectionStart, selectionEnd: field.selectionEnd
     }))
@@ -1584,6 +1749,9 @@ function restoreDrafts(drafts) {
     for (const entry of draft.fields) {
       const field = form.elements.namedItem(entry.name);
       field.value = entry.value;
+      if (entry.name === 'productIcon' && shoppingIcons.includes(entry.value)) {
+        form.querySelector('[data-shop-icon]').textContent = entry.value;
+      }
       if (!entry.focused || form.closest('section').id !== tab) continue;
       field.focus({preventScroll: true});
       if (entry.selectionStart !== null && entry.selectionStart !== undefined) {
