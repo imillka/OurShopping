@@ -207,6 +207,122 @@ main:has(#app:not(.hidden)) { padding: env(safe-area-inset-top, 0px) clamp(11px,
 .meal-photo-preview { display: block; max-width: 100%; max-height: 115px; margin: 8px 0; border-radius: 10px; }
 #removeMealPhoto { color: #b72542; }
 
+#app.meals-list-view > .app-header { padding-bottom: 10px; }
+#app.meal-page-view > .app-header { display: none; }
+main:has(.meal-page-view) { padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px)); }
+.nav.meal-page-nav-hidden { display: none; }
+body:has(.meals-list-view), body:has(.meal-page-view) { background: #f8f8fc; }
+.meals-intro { margin: 0 5px 28px; color: #4d566f; line-height: 1.4; font-size: clamp(14px, 3.7vw, 18px); }
+.meal-primary {
+  display: flex; width: 100%; min-height: 60px; align-items: center; justify-content: center; gap: 11px;
+  border: 0; border-radius: 21px; background: linear-gradient(110deg, #75b1f9, #2877f2 72%);
+  color: #fff; font-size: clamp(16px, 4.5vw, 22px); font-weight: 750;
+  box-shadow: 0 8px 18px #2e75dd24;
+}
+.meal-create-form[hidden] { display: none; }
+.meal-create-form { margin: 12px 0; }
+.meal-create-form input { margin-top: 0; }
+.meal-filters { display: flex; gap: 8px; margin: 24px -3px 22px; padding: 3px 3px 8px; overflow-x: auto; scrollbar-width: none; }
+.meal-filter {
+  flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 9px 10px; min-height: 39px; border-radius: 999px;
+  border: 1px solid #edeef4; background: #fff9; color: #222b40; font-size: clamp(11px, 3.1vw, 15px);
+  box-shadow: 0 3px 9px #172b5211; white-space: nowrap;
+}
+.meal-filter[aria-pressed="true"] { color: #0758c7; background: #e6efff; border-color: #b9d4ff; font-weight: 700; }
+.meal-filter .icon { width: 16px; height: 16px; }
+.meal-filter-count { display: inline-grid; place-items: center; min-width: 22px; padding: 2px 4px; border-radius: 999px; background: #f4f6fb; font-weight: 700; }
+.meal-tiles { display: grid; gap: 9px; margin: 0 -4px; }
+.meal-tile {
+  display: grid; grid-template-columns: minmax(0, 1fr) 25px; position: relative;
+  align-items: center; border: 1px solid #eceef4; border-radius: 24px; background: #fff;
+  padding: 9px; box-shadow: 0 5px 14px #14284a0e;
+}
+.meal-tile-link {
+  display: grid; grid-template-columns: minmax(76px, 39%) minmax(0, 1fr); align-items: center;
+  gap: clamp(10px, 4vw, 18px); text-decoration: none; color: #0a1020;
+}
+.meal-tile-photo { position: relative; width: 100%; aspect-ratio: 1; overflow: hidden; border-radius: 17px; background: #edf2fa; }
+.meal-tile-photo > img, .meal-cover > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.meal-photo-fallback { position: absolute; inset: 0; display: grid; place-items: center; color: #7593bf; background: linear-gradient(145deg, #e3edfd, #f1f5fb); }
+.meal-photo-fallback .icon { width: 28%; height: 40%; }
+.meal-tile-title { margin: 0 0 6px; font-size: clamp(15px, 4.4vw, 23px); letter-spacing: -.03em; line-height: 1.1; overflow-wrap: anywhere; }
+.meal-tile-count, .meal-tile-progress { margin: 0; color: #4d566f; line-height: 1.2; font-size: clamp(11px, 3.25vw, 15px); }
+.meal-tile-progress { font-size: clamp(10px, 2.85vw, 14px); }
+.meal-tile .bar { height: 9px; margin: 12px 0 7px; background: #e4e8f1; }
+.meal-tile .bar i, .meal-ingredients-card .bar i { background: #20b729; }
+.meal-tile-chevron { justify-self: end; color: #26324a; width: 22px; height: 22px; pointer-events: none; }
+.meal-heart {
+  display: inline-grid; place-items: center; width: 36px; height: 36px; flex: none;
+  padding: 0; border: 0; border-radius: 50%; color: #343f57; background: #f0f2f7;
+}
+.meal-heart .icon { width: 63%; height: 63%; }
+.meal-heart[aria-pressed="true"] { background: #fff0f5; }
+.meal-tile .meal-heart { position: absolute; top: 15px; left: calc(36% - 23px); width: 31px; height: 31px; background: #fff9; }
+.meal-card-complete { position: absolute; right: 12px; bottom: 16px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; color: white; background: #20b729; }
+.meal-detail { padding-top: 9px; }
+.meal-detail-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 0 3px 13px; }
+.meal-detail-actions { display: flex; gap: 8px; }
+.meal-round-action {
+  display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid #eceef4;
+  border-radius: 50%; background: #fff; color: #10192c; text-decoration: none; box-shadow: 0 4px 10px #15244512;
+}
+.meal-round-action .icon { width: 22px; height: 22px; }
+.meal-menu, .ingredient-menu { position: relative; }
+.meal-menu summary, .ingredient-menu summary { list-style: none; cursor: pointer; }
+.meal-menu summary::-webkit-details-marker, .ingredient-menu summary::-webkit-details-marker { display: none; }
+.meal-menu-panel {
+  min-width: max-content; position: absolute; z-index: 4; top: calc(100% + 4px); right: 0; display: grid;
+  gap: 3px; padding: 5px; border: 1px solid #e6e9f0; border-radius: 11px; background: #fff; box-shadow: 0 6px 18px #15294222;
+}
+.meal-menu-panel button { padding: 10px; border: 0; background: none; text-align: left; color: #10192c; font-size: 14px; }
+.meal-menu-panel .meal-action-danger { color: #b72542; }
+.meal-cover { position: relative; overflow: hidden; aspect-ratio: 1.58; border-radius: 22px; }
+.meal-detail-heading { padding: 0 4px; margin: 13px 0 10px; }
+.meal-detail-heading h1 { min-width: 0; margin: 0; font-size: clamp(22px, 6.1vw, 34px); line-height: 1.15; letter-spacing: -.035em; overflow-wrap: anywhere; }
+.meal-facts { display: flex; gap: 7px; margin: 0 0 17px; flex-wrap: wrap; }
+.meal-fact { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 7px 10px; background: #eff0f6; color: #333d54; font-size: 12px; }
+.meal-fact .icon { width: 16px; height: 16px; }
+.meal-tabs { display: grid; grid-template-columns: 1.15fr 1fr 1fr; gap: 6px; margin: 18px 0 15px; }
+.meal-tabs button {
+  display: flex; align-items: center; justify-content: center; gap: 5px; padding: 9px 2px;
+  border: 0; border-radius: 17px; background: #eeeff5; color: #262d42;
+  font-weight: 640; font-size: clamp(11px, 3.3vw, 16px); min-height: 41px;
+}
+.meal-tabs button[aria-pressed="true"] { background: linear-gradient(110deg, #559efb, #0c5be5); color: #fff; box-shadow: 0 5px 10px #1565da2a; }
+.meal-tabs .icon { width: 16px; height: 16px; }
+.meal-panel { border: 1px solid #ebedf4; border-radius: 23px; background: #fff; padding: 13px; box-shadow: 0 5px 15px #14284a09; }
+.meal-panel h2 { margin: 0; font-size: clamp(15px, 4.5vw, 21px); line-height: 1.15; }
+.meal-ingredients-card .bar { height: 10px; margin: 12px 0 13px; background: #e4e8f1; }
+.meal-panel-count { font-size: clamp(10px, 3vw, 14px); color: #4d566f; white-space: nowrap; }
+.meal-panel-count strong { color: #0755cc; }
+.meal-ingredient-line { gap: 9px; min-height: 43px; padding: 0 6px; border-bottom: 1px solid #f1f2f7; }
+.meal-ingredient-line.meal-ingredient-bought { border-radius: 12px; background: #e9f7e9; border-bottom-color: transparent; margin-bottom: 2px; }
+.meal-ingredient-line .itemname { font-size: clamp(12px, 3.85vw, 17px); }
+.meal-ingredient-line .check { appearance: none; display: grid; place-items: center; width: 25px; height: 25px; padding: 0; margin: 0; border-radius: 8px; border: 1.5px solid #687287; background: #fff; }
+.meal-ingredient-line .check:checked, .meal-ingredient-line .check:indeterminate { border-color: #20b729; background: #20b729; }
+.meal-ingredient-line .check:checked::after { content: ""; width: 10px; height: 5px; border: solid #fff; border-width: 0 0 2px 2px; transform: translateY(-1px) rotate(-45deg); }
+.meal-ingredient-line .check:indeterminate::after { content: ""; width: 10px; border-bottom: 2px solid #fff; }
+.meal-ingredient-qty { color: #535d74; font-size: clamp(10px, 3.4vw, 14px); max-width: 30%; text-align: right; overflow-wrap: anywhere; }
+.ingredient-menu summary { display: grid; place-items: center; color: #596178; width: 26px; height: 35px; }
+.ingredient-menu summary .icon { width: 17px; height: 17px; }
+.meal-ingredient-add { margin-top: 14px; }
+.meal-ingredient-add > summary {
+  display: flex; align-items: center; gap: 7px; padding: 10px 12px; min-height: 42px; list-style: none;
+  border-radius: 13px; background: #e7efff; font-weight: 700; color: #0959c9; cursor: pointer;
+}
+.meal-ingredient-add > summary::-webkit-details-marker { display: none; }
+.meal-ingredient-add form { padding-top: 7px; }
+.meal-description { margin-bottom: 0; }
+.meal-detail-empty { margin: 9px 0 2px; color: #60697f; font-size: 14px; }
+.meal-fact-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 9px; }
+.meal-fact-fields label { min-width: 0; }
+.meal-fact-fields label:last-child { grid-column: 1 / -1; }
+.meal-fact-fields[hidden] { display: none; }
+@media (max-width: 350px) {
+  .meal-filter { padding-inline: 8px; }
+  .meal-tile .meal-heart { left: calc(34% - 18px); }
+}
+
 </style>
 </head>
 <body>
@@ -264,6 +380,14 @@ main:has(#app:not(.hidden)) { padding: env(safe-area-inset-top, 0px) clamp(11px,
     <textarea id="mealDescription" name="description" rows="3" maxlength="2000" placeholder="Заметки или способ приготовления"></textarea>
     <label for="mealRecipe">Ссылка на рецепт</label>
     <input id="mealRecipe" name="recipe" type="url" inputmode="url" maxlength="2000" placeholder="https://www.instagram.com/…">
+    <div id="mealFactFields" class="meal-fact-fields" hidden>
+      <label>Время, мин<input id="mealPrepMinutes" type="number" min="1" max="1440" step="1" inputmode="numeric"></label>
+      <label>Порции<input id="mealServings" type="number" min="1" max="999" step="1" inputmode="numeric"></label>
+      <label>Сложность<select id="mealDifficulty">
+        <option value="">Не указана</option><option value="easy">Легко</option>
+        <option value="medium">Средне</option><option value="hard">Сложно</option>
+      </select></label>
+    </div>
     <p id="mealDetailsError" role="alert"></p>
     <div class="row dialog-actions">
       <button type="button" class="btn alt" id="cancelMealDetails">Отмена</button>
@@ -794,12 +918,16 @@ function clearMealPhotoPreview() {
 
 async function openMealDetails(meal) {
   clearMealPhotoPreview();
-  const draft = {id: meal.id, originalPath: meal.photo_path, revision: meal.details_revision, removePhoto: false};
+  const draft = {id: meal.id, originalPath: meal.photo_path, revision: meal.details_revision, hasFacts: Object.hasOwn(meal, 'prep_minutes'), removePhoto: false};
   mealDetailsDraft = draft;
   $('mealDetailsForm').reset();
   $('mealDetailsName').textContent = meal.name;
   $('mealDescription').value = meal.description || '';
   $('mealRecipe').value = meal.recipe_url || '';
+  $('mealFactFields').hidden = !draft.hasFacts;
+  $('mealPrepMinutes').value = meal.prep_minutes ?? '';
+  $('mealServings').value = meal.servings ?? '';
+  $('mealDifficulty').value = meal.difficulty ?? '';
   $('mealDetailsError').textContent = '';
   $('removeMealPhoto').hidden = !meal.photo_path;
   $('mealDetailsDialog').showModal();
@@ -892,6 +1020,11 @@ $('mealDetailsForm').onsubmit = async event => {
   }
   const file = $('mealPhoto').files[0];
   const description = $('mealDescription').value.trim();
+  const facts = draft.hasFacts ? {
+    prep_minutes: $('mealPrepMinutes').value ? Number($('mealPrepMinutes').value) : null,
+    servings: $('mealServings').value ? Number($('mealServings').value) : null,
+    difficulty: $('mealDifficulty').value || null
+  } : {};
   const workspace = space.id;
   const storage = file ? sb.storage.from(mealPhotoBucket) : null;
   let uploadedPath = null;
@@ -907,7 +1040,7 @@ $('mealDetailsForm').onsubmit = async event => {
     const nextPath = uploadedPath || (draft.removePhoto ? null : draft.originalPath);
     const {data, error} = await sb.from('meals').update({
       description, recipe_url: recipe?.href || null, photo_path: nextPath,
-      details_revision: draft.revision + 1
+      details_revision: draft.revision + 1, ...facts
     }).eq('space_id', workspace).eq('id', draft.id).eq('details_revision', draft.revision).select('id');
     if (error) throw new Error(error.message);
     if (!data?.length) throw new Error('Блюдо изменилось в другой вкладке. Закрой форму и открой её заново.');
@@ -925,42 +1058,332 @@ $('mealDetailsForm').onsubmit = async event => {
   }
 };
 
+const mealIcons = {
+  back: '<path d="m15 4-8 8 8 8"/>',
+  next: '<path d="m9 5 7 7-7 7"/>',
+  favorite: '<path d="M12 20c-4-2.9-9-6.8-9-11a4.8 4.8 0 0 1 9-2.3A4.8 4.8 0 0 1 21 9c0 4.2-5 8.1-9 11Z"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18"/>',
+  share: '<path d="M12 15V2m-4 4 4-4 4 4M7 9H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-2"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  portions: '<path d="M4 3v5a2 2 0 0 0 4 0V3m-2 7v11M17 3c-2 1-3 4-3 8h4v10m0-18v8"/>',
+  difficulty: '<path d="M3 21v-6h4v6zm7 0V9h4v12zm7 0V3h4v18z"/>',
+  play: '<circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4z"/>',
+  done: '<path d="m5 12 4 4L19 6" stroke-width="2.2"/>',
+};
+Object.assign(icons, mealIcons);
+
+let mealListFilter = 'all';
+let mealPageTab = 'ingredients';
+let mealPreferences = {};
+let createMealOpen = false;
+let lastMealRoute = null;
+const difficultyNames = {easy: 'Легко', medium: 'Средне', hard: 'Сложно'};
+
+function loadMealPreferences() {
+  mealPreferences = {};
+  try {
+    const saved = JSON.parse(localStorage.getItem('ourshopping-meal-preferences-' + user.id));
+    if (saved && typeof saved === 'object' && !Array.isArray(saved)) mealPreferences = saved;
+  } catch {
+    // Preferences stay available for the current session.
+  }
+}
+
+function toggleMealPreference(id, field) {
+  const state = mealPreferences[id] || {};
+  mealPreferences[id] = {...state, [field]: !state[field]};
+  try {
+    localStorage.setItem('ourshopping-meal-preferences-' + user.id, JSON.stringify(mealPreferences));
+  } catch {
+    // Storage may be disabled in this browser.
+  }
+  render();
+}
+
+function currentMealId() {
+  if (!location.hash.startsWith('#meal/')) return null;
+  try {
+    return decodeURIComponent(location.hash.slice('#meal/'.length)) || null;
+  } catch {
+    return null;
+  }
+}
+
+function mealHref(id) {
+  return '#meal/' + encodeURIComponent(id);
+}
+
+function openMealPage(id) {
+  mealPageTab = 'ingredients';
+  history.pushState({ourShoppingMeal: id}, '', mealHref(id));
+  showTab('meals');
+}
+
+function closeMealPage() {
+  if (currentMealId() && history.state?.ourShoppingMeal === currentMealId()) {
+    history.back();
+  } else {
+    history.replaceState(null, '', location.pathname + location.search);
+    showTab('meals');
+  }
+}
+
+window.addEventListener('hashchange', () => {
+  if (!user || (!currentMealId() && !lastMealRoute)) return;
+  mealPageTab = 'ingredients';
+  showTab('meals');
+});
+
+function mealCover(meal, cssClass) {
+  return `<div class="${cssClass}">
+    <span class="meal-photo-fallback" aria-hidden="true">${icon('meals')}</span>
+    ${meal.photo_path ? `<img data-meal-photo="${escape(meal.photo_path)}" alt="">` : ''}
+  </div>`;
+}
+
+function mealHeart(meal) {
+  const favorite = !!mealPreferences[meal.id]?.favorite;
+  return `<button type="button" class="meal-heart" data-meal-favorite="${escape(meal.id)}"
+    aria-pressed="${favorite}" aria-label="${favorite ? 'Убрать из избранного' : 'В избранное'}">${icon(favorite ? 'heart' : 'favorite')}</button>`;
+}
+
+function ingredientCountLabel(count) {
+  const word = new Intl.PluralRules('ru').select(count);
+  return count + ' ' + ({one: 'ингредиент', few: 'ингредиента'}[word] || 'ингредиентов');
+}
+
+function mealProgress(ingredients) {
+  const done = ingredients.filter(group => group.purchased).length;
+  return {done, percent: ingredients.length ? Math.round(done / ingredients.length * 100) : 0};
+}
+
+function mealProgressBar(percent) {
+  return `<div class="bar" role="progressbar" aria-label="Куплено ингредиентов" aria-valuenow="${percent}"><i style="width:${percent}%"></i></div>`;
+}
+
+function renderMealList(byMeal) {
+  const favorites = meals.filter(meal => mealPreferences[meal.id]?.favorite);
+  const planned = meals.filter(meal => mealPreferences[meal.id]?.planned);
+  const tabs = [
+    ['all', '', 'Все блюда', meals.length],
+    ['favorite', 'favorite', 'Избранное', favorites.length],
+    ['planned', 'calendar', 'В планах', planned.length],
+  ];
+  const visible = mealListFilter === 'favorite' ? favorites : mealListFilter === 'planned' ? planned : meals;
+  const tiles = visible.map(meal => {
+    const ingredients = groupProducts(byMeal.get(meal.id) || []);
+    const {done, percent} = mealProgress(ingredients);
+    return `<article class="meal-tile">
+      <a class="meal-tile-link" href="${escape(mealHref(meal.id))}" data-meal-open="${escape(meal.id)}">
+        ${mealCover(meal, 'meal-tile-photo')}
+        <div>
+          <h2 class="meal-tile-title">${escape(meal.name)}</h2>
+          <p class="meal-tile-count">${ingredientCountLabel(ingredients.length)}</p>
+          ${mealProgressBar(percent)}
+          <p class="meal-tile-progress">Куплено ${done} из ${ingredients.length}</p>
+        </div>
+      </a>
+      <span class="meal-tile-chevron">${icon('next')}</span>
+      ${mealHeart(meal)}
+      ${percent === 100 ? `<span class="meal-card-complete" aria-label="Все ингредиенты куплены">${icon('done')}</span>` : ''}
+    </article>`;
+  }).join('');
+  $('meals').innerHTML = `
+    <p class="meals-intro">Рецепты, ингредиенты и список покупок<br>в одном месте</p>
+    <button type="button" class="meal-primary" id="showAddMeal" aria-expanded="${createMealOpen}" aria-controls="addMeal">${icon('plus')} Создать блюдо</button>
+    <form id="addMeal" class="card meal-create-form" data-draft ${createMealOpen ? '' : 'hidden'}>
+      <input name="name" placeholder="Название блюда" aria-label="Название блюда" maxlength="120" required>
+      <button class="btn">Создать</button>
+    </form>
+    <div class="meal-filters" aria-label="Фильтры блюд">
+      ${tabs.map(([key, glyph, label, count]) => `<button type="button" class="meal-filter" data-meal-filter="${key}" aria-pressed="${mealListFilter === key}">
+        ${glyph ? icon(glyph) : ''} ${label} <span class="meal-filter-count">${count}</span>
+      </button>`).join('')}
+    </div>
+    <div class="meal-tiles">${tiles || '<div class="card empty">' + (mealListFilter === 'all' ? 'Пока нет блюд.' : 'Здесь пока пусто.') + '</div>'}</div>
+  `;
+  $('showAddMeal').onclick = () => {
+    createMealOpen = !createMealOpen;
+    $('addMeal').hidden = !createMealOpen;
+    $('showAddMeal').setAttribute('aria-expanded', String(createMealOpen));
+    if (createMealOpen) $('addMeal').elements.namedItem('name').focus();
+  };
+}
+
+function renderMealFacts(meal) {
+  const facts = [];
+  if (meal.prep_minutes) facts.push(['clock', '≈ ' + meal.prep_minutes + ' мин']);
+  if (meal.servings) {
+    const word = new Intl.PluralRules('ru').select(meal.servings);
+    facts.push(['portions', meal.servings + ' ' + ({one: 'порция', few: 'порции'}[word] || 'порций')]);
+  }
+  if (difficultyNames[meal.difficulty]) facts.push(['difficulty', difficultyNames[meal.difficulty]]);
+  if (!facts.length) return '';
+  return `<div class="meal-facts">${facts.map(([glyph, label]) => `<span class="meal-fact">${icon(glyph)} ${escape(label)}</span>`).join('')}</div>`;
+}
+
+function renderMealIngredients(meal, ingredients) {
+  const {done, percent} = mealProgress(ingredients);
+  const wasOpen = $('meals').querySelector('.meal-ingredient-add[data-meal="' + CSS.escape(meal.id) + '"]')?.open;
+  return `<section class="meal-panel meal-ingredients-card">
+    <div class="row between">
+      <h2>Список ингредиентов</h2>
+      <span class="meal-panel-count">Куплено <strong>${done} из ${ingredients.length}</strong></span>
+    </div>
+    ${mealProgressBar(percent)}
+    ${ingredients.map(group => `<div class="row meal-ingredient-line${group.purchased ? ' meal-ingredient-bought' : ''}">
+      ${checkedBox(group)}
+      <div class="grow">
+        <div class="itemname">${escape(group.name)}</div>
+        ${group.partial ? `<div class="muted small">${escape(purchaseStatus(group))}</div>` : ''}
+      </div>
+      <span class="meal-ingredient-qty">${escape(group.quantity)}${/^\d+$/.test(group.quantity) ? ' шт.' : ''}</span>
+      <details class="ingredient-menu">
+        <summary aria-label="Действия с ингредиентом">${icon('more')}</summary>
+        <div class="meal-menu-panel"><button type="button" class="meal-action-danger" data-remove-ingredient="${escape(group.rows.map(row => row.id).join(','))}" data-meal="${escape(meal.id)}">Удалить ингредиент</button></div>
+      </details>
+    </div>`).join('')}
+    <details class="meal-ingredient-add" data-meal="${escape(meal.id)}" ${wasOpen ? 'open' : ''}>
+      <summary>${icon('plus')} Добавить ингредиент</summary>
+      <form data-ingredient="${escape(meal.id)}" data-draft>
+        ${productInput('Ингредиент')}
+        ${quantityStepper()}
+        <button class="btn">Добавить</button>
+      </form>
+    </details>
+  </section>`;
+}
+
+function renderMealDetail(meal, ingredients) {
+  const planned = !!mealPreferences[meal.id]?.planned;
+  const recipe = recipeAddress(meal.recipe_url);
+  const canEdit = Number.isInteger(meal.details_revision);
+  const tabs = [['ingredients', 'Ингредиенты'], ['description', 'Описание'], ['recipe', 'Рецепт']];
+  const ingredientsHidden = mealPageTab !== 'ingredients' ? ' hidden' : '';
+  $('meals').innerHTML = `
+    <article class="meal-detail">
+      <div class="meal-detail-top">
+        <a class="meal-round-action" href="#" id="mealBack" aria-label="К списку блюд">${icon('back')}</a>
+        <div class="meal-detail-actions">
+          <button type="button" class="meal-round-action" id="shareMeal" aria-label="Поделиться блюдом">${icon('share')}</button>
+          <details class="meal-menu">
+            <summary class="meal-round-action" aria-label="Ещё действия">${icon('more')}</summary>
+            <div class="meal-menu-panel">
+              ${canEdit ? `<button type="button" data-meal-edit="${escape(meal.id)}">Редактировать</button>` : ''}
+              <button type="button" data-meal-plan="${escape(meal.id)}">${planned ? 'Убрать из планов' : 'В планы'}</button>
+              <button type="button" class="meal-action-danger" data-mealdel="${escape(meal.id)}">Удалить блюдо</button>
+            </div>
+          </details>
+        </div>
+      </div>
+      ${mealCover(meal, 'meal-cover')}
+      <div class="row between meal-detail-heading">
+        <h1>${escape(meal.name)}</h1>
+        ${mealHeart(meal)}
+      </div>
+      ${renderMealFacts(meal)}
+      <div class="meal-tabs" aria-label="Информация о блюде">
+        ${tabs.map(([key, title]) => `<button type="button" data-meal-tab="${key}" aria-controls="meal-panel-${key}" aria-pressed="${mealPageTab === key}">${key === 'recipe' ? icon('play') : ''}${title}</button>`).join('')}
+      </div>
+      <div id="meal-panel-ingredients"${ingredientsHidden}>${renderMealIngredients(meal, ingredients)}</div>
+      <section class="meal-panel" id="meal-panel-description" ${mealPageTab === 'description' ? '' : 'hidden'}>
+        <h2>Описание</h2>
+        ${meal.description ? `<p class="meal-description">${escape(meal.description)}</p>` : '<p class="meal-detail-empty">Описание пока не добавлено.</p>'}
+      </section>
+      <section class="meal-panel" id="meal-panel-recipe" ${mealPageTab === 'recipe' ? '' : 'hidden'}>
+        <h2>Рецепт</h2>
+        ${recipe ? `<a class="meal-recipe-link" href="${escape(recipe.href)}" target="_blank" rel="noopener noreferrer">${recipeCaption(recipe)}</a>` : '<p class="meal-detail-empty">Ссылка на рецепт пока не добавлена.</p>'}
+      </section>
+    </article>`;
+  $('mealBack').onclick = event => {
+    event.preventDefault();
+    closeMealPage();
+  };
+  $('shareMeal').onclick = async () => {
+    const url = new URL(mealHref(meal.id), location.href).href;
+    try {
+      if (navigator.share) await navigator.share({title: meal.name, url});
+      else {
+        await navigator.clipboard.writeText(url);
+        alert('Ссылка на блюдо скопирована.');
+      }
+    } catch (error) {
+      if (error.name !== 'AbortError') alert('Скопируй ссылку на блюдо из адресной строки.');
+    }
+  };
+}
+
 function renderMeals() {
+  const id = tab === 'meals' ? currentMealId() : null;
+  lastMealRoute = id;
+  $('app').classList.toggle('meals-list-view', tab === 'meals' && !id);
+  $('app').classList.toggle('meal-page-view', !!id);
+  $('nav').classList.toggle('meal-page-nav-hidden', !!id);
   const byMeal = new Map();
   for (const item of items) {
     if (!item.meal_id) continue;
     if (!byMeal.has(item.meal_id)) byMeal.set(item.meal_id, []);
     byMeal.get(item.meal_id).push(item);
   }
-  $('meals').innerHTML = sectionHeading('meals', 'Блюда') + `
-    <div class="card"><form id="addMeal" data-draft><input name="name" placeholder="Название блюда" maxlength="120" required><button class="btn">+ Добавить блюдо</button></form></div>
-  ` + meals.map(meal => {
-    const ingredients = groupProducts(byMeal.get(meal.id) || []);
-    const recipe = recipeAddress(meal.recipe_url);
-    return `<div class="card">
-      <div class="row between meal-card-heading">
-        <div class="title">${escape(meal.name)}</div>
-        <div class="meal-card-actions">
-          ${Number.isInteger(meal.details_revision) ? `<button type="button" class="link meal-detail-link" data-meal-edit="${escape(meal.id)}">Детали</button>` : ''}
-          <button type="button" class="link" data-mealdel="${escape(meal.id)}">Удалить</button>
-        </div>
-      </div>
-      ${meal.photo_path ? `<img class="meal-feature-photo" data-meal-photo="${escape(meal.photo_path)}" alt="">` : ''}
-      ${meal.description ? `<p class="meal-description">${escape(meal.description)}</p>` : ''}
-      ${recipe ? `<a class="meal-recipe-link" href="${escape(recipe.href)}" target="_blank" rel="noopener noreferrer">${recipeCaption(recipe)}</a>` : ''}
-      ${ingredients.length ? `<div class="meal-ingredients">${ingredients.map(group => `<div class="row ingredient-entry ${group.purchased ? 'done' : ''}">
-        ${checkedBox(group)}
-        <div class="grow"><div class="itemname">${escape(group.name)} — ${escape(group.quantity)}</div>
-        ${group.partial ? `<div class="muted small">${escape(purchaseStatus(group))}</div>` : ''}</div>
-      </div>`).join('')}</div>` : ''}
-      <form data-ingredient="${escape(meal.id)}" data-draft>
-        ${productInput('Ингредиент')}
-        ${quantityStepper()}
-        <button class="btn alt">+ В покупки</button>
-      </form>
-    </div>`;
-  }).join('');
+  if (id) {
+    const meal = meals.find(row => row.id === id);
+    if (meal) renderMealDetail(meal, groupProducts(byMeal.get(meal.id) || []));
+    else {
+      $('meals').innerHTML = '<div class="card"><h2>Блюдо не найдено</h2><button type="button" class="btn alt" id="mealBack">К списку блюд</button></div>';
+      $('mealBack').onclick = closeMealPage;
+    }
+  } else {
+    renderMealList(byMeal);
+  }
 }
+
+$('meals').addEventListener('click', async event => {
+  const link = event.target.closest('[data-meal-open]');
+  if (link) {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    openMealPage(link.dataset.mealOpen);
+    return;
+  }
+  const favorite = event.target.closest('[data-meal-favorite]');
+  if (favorite) {
+    toggleMealPreference(favorite.dataset.mealFavorite, 'favorite');
+    return;
+  }
+  const plan = event.target.closest('[data-meal-plan]');
+  if (plan) {
+    toggleMealPreference(plan.dataset.mealPlan, 'planned');
+    return;
+  }
+  const filter = event.target.closest('[data-meal-filter]');
+  if (filter) {
+    mealListFilter = filter.dataset.mealFilter;
+    render();
+    $('meals').querySelector('[data-meal-filter="' + mealListFilter + '"]').focus({preventScroll: true});
+    return;
+  }
+  const pane = event.target.closest('[data-meal-tab]');
+  if (pane) {
+    mealPageTab = pane.dataset.mealTab;
+    for (const button of $('meals').querySelectorAll('[data-meal-tab]')) {
+      const selected = button.dataset.mealTab === mealPageTab;
+      button.setAttribute('aria-pressed', String(selected));
+      $(button.getAttribute('aria-controls')).hidden = !selected;
+    }
+    return;
+  }
+  const remove = event.target.closest('[data-remove-ingredient]');
+  if (!remove || !confirm('Удалить ингредиент из блюда и покупок?')) return;
+  remove.disabled = true;
+  try {
+    const {error} = await sb.from('shopping_items').delete().eq('space_id', space.id)
+      .eq('meal_id', remove.dataset.meal).in('id', remove.dataset.removeIngredient.split(','));
+    if (error) alert(error.message);
+    await refresh();
+  } finally {
+    remove.disabled = false;
+  }
+});
 
 function openPrice(item) {
   const form = $('setPriceForm');
@@ -1044,13 +1467,15 @@ function bindPurchaseForms() {
           return;
         }
         const result = form.id === 'addMeal'
-          ? await sb.from('meals').insert({space_id: space.id, name, created_by: user.id})
+          ? await sb.from('meals').insert({space_id: space.id, name, created_by: user.id}).select('id').single()
           : await insertPurchase(form, form.dataset.ingredient || null);
         if (result.error) alert(result.error.message);
         else {
           const current = liveForm();
           if (current && current.elements.namedItem('name').value.trim() === name) current.reset();
+          if (form.id === 'addMeal') createMealOpen = false;
           await refresh();
+          if (form.id === 'addMeal' && tab === 'meals') openMealPage(result.data.id);
         }
       } finally {
         pendingForms.delete(key);
@@ -1072,7 +1497,11 @@ function bindPurchaseForms() {
   document.querySelectorAll('[data-meal-edit]').forEach(button => {
     button.onclick = () => {
       const meal = meals.find(row => row.id === button.dataset.mealEdit);
-      if (meal) void openMealDetails(meal);
+      if (meal) {
+        const menu = button.closest('details');
+        if (menu) menu.open = false;
+        void openMealDetails(meal);
+      }
     };
   });
   document.querySelectorAll('[data-del], [data-mealdel]').forEach(button => {
@@ -1083,7 +1512,10 @@ function bindPurchaseForms() {
       const deletion = sb.from(isMeal ? 'meals' : 'shopping_items').delete().eq('space_id', space.id).eq('id', id);
       const {data, error} = await (isMeal ? deletion.select('*') : deletion);
       if (error) alert(error.message);
-      else if (isMeal && data?.[0]?.photo_path) await removeMealPhotoFile(data[0].photo_path);
+      else if (isMeal) {
+        if (data?.[0]?.photo_path) await removeMealPhotoFile(data[0].photo_path);
+        if (currentMealId() === id) closeMealPage();
+      }
       await refresh();
     };
   });
@@ -1158,9 +1590,12 @@ async function init() {
   $('app').classList.toggle('hidden', !user);
   $('nav').classList.toggle('hidden', !user);
   if (!user) return;
+  loadMealPreferences();
   await loadSpace();
-  if (space) await subscribeToList();
-  else render();
+  if (space) {
+    await subscribeToList();
+    if (currentMealId()) showTab('meals');
+  } else render();
 }
 function sectionHeading(iconName, title, badge = '') {
   return `<div class="section-heading">
