@@ -69,9 +69,8 @@ main:has(#app:not(.hidden)) { padding: env(safe-area-inset-top, 0px) clamp(11px,
 .hero-reference::before { content: ""; position: absolute; z-index: -1; inset: 0; border-radius: inherit; background: linear-gradient(90deg, #fff8f32c, #fff8f35e 43%, transparent 76%); }
 .hero-heading { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .hero-heading h2 { margin: 0; min-width: 0; }
-.hero-title { display: flex; align-items: center; gap: clamp(4px, 1.4vw, 8px); color: var(--ink); border: 0; background: none; padding: 0; text-align: left; font-size: clamp(17px, 5.05vw, 27px); line-height: 1.15; font-weight: 800; letter-spacing: -.035em; }
+.hero-title { display: flex; align-items: center; gap: clamp(4px, 1.4vw, 8px); color: var(--ink); font-size: clamp(17px, 5.05vw, 27px); line-height: 1.15; font-weight: 800; letter-spacing: -.035em; }
 .hero-title .tree-emoji { font-size: 1.2em; }
-.hero-title .icon { width: .75em; margin-left: 2px; }
 .hero-menu { width: 34px; height: 28px; border-radius: 99px; flex: none; background: #fffffff1; }
 .hero-menu .icon { width: 18px; height: 18px; }
 .hero-reference p { margin: 5px 0 13px; color: var(--secondary); font-size: clamp(12px, 3.35vw, 17px); }
@@ -86,8 +85,8 @@ main:has(#app:not(.hidden)) { padding: env(safe-area-inset-top, 0px) clamp(11px,
 .shopping-preview { margin-top: 24px; }
 .shopping-preview .list-heading { gap: 6px; padding: 0 2px 0 3px; }
 .shopping-preview h2 { min-width: 0; margin: 0; font-size: clamp(16px, 5.1vw, 26px); letter-spacing: -.045em; }
-.new-list { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: none; padding: 8px clamp(9px, 3.5vw, 17px); border: 0; border-radius: 999px; background: var(--soft-blue); color: var(--blue); font-size: clamp(12px, 3.45vw, 17px); font-weight: 640; }
-.new-list .icon { width: 1.25em; height: 1.25em; }
+.new-product { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: none; padding: 8px clamp(9px, 3.5vw, 17px); border: 0; border-radius: 999px; background: var(--soft-blue); color: var(--blue); font-size: clamp(12px, 3.45vw, 17px); font-weight: 640; }
+.new-product .icon { width: 1.25em; height: 1.25em; }
 .filter-row { display: flex; align-items: center; gap: clamp(5px, 2.4vw, 12px); margin: 13px 3px 16px; }
 .filter-chip { flex: none; border: 0; border-radius: 999px; background: #eff0f5; color: var(--ink); padding: 7px clamp(7px, 3.65vw, 17px); font-size: clamp(11px, 3.45vw, 17px); white-space: nowrap; }
 .filter-chip[aria-pressed="true"] { background: var(--soft-blue); color: #074fa7; }
@@ -110,14 +109,13 @@ main:has(#app:not(.hidden)) { padding: env(safe-area-inset-top, 0px) clamp(11px,
 .popover button { border: 0; padding: 8px; border-radius: 6px; text-align: left; background: none; color: var(--ink); font-size: 14px; }
 .popover button:hover, .popover button[aria-current="true"] { background: var(--soft-blue); }
 .hero-reference .popover { top: 45px; }
-#listPicker { left: 10px; }
 #heroActions, #filterOptions { right: 0; }
 .filters { position: relative; }
 #filterOptions { top: 100%; }
-#createListDialog { width: min(360px, calc(100% - 32px)); padding: 20px; border: 1px solid #e9edf4; border-radius: 18px; color: #0a1020; }
-#createListDialog::backdrop { background: #10182745; }
-#createListDialog .dialog-actions { justify-content: flex-end; margin-top: 12px; }
-#createListError { color: #b72542; margin: 6px 0 0; }
+#addProductDialog { width: min(360px, calc(100% - 32px)); padding: 20px; border: 1px solid #e9edf4; border-radius: 18px; color: #0a1020; }
+#addProductDialog::backdrop { background: #10182745; }
+#addProductDialog .dialog-actions { justify-content: flex-end; margin-top: 12px; }
+#addProductError { color: #b72542; margin: 6px 0 0; }
 .section-title { display: inline-flex; align-items: center; gap: 8px; }
 @media (min-width: 500px) {
   .hero-reference { padding: 17px 18px 17px 20px; }
@@ -149,15 +147,19 @@ main:has(#app:not(.hidden)) { padding: env(safe-area-inset-top, 0px) clamp(11px,
   <button type="button" data-tab="shopping">Покупки</button>
   <button type="button" data-tab="budget">Бюджет</button>
 </nav>
-<dialog id="createListDialog" aria-labelledby="createListTitle">
-  <form id="createListForm">
-    <h2 id="createListTitle">Новый список</h2>
-    <label for="newListName">Название списка</label>
-    <input id="newListName" required maxlength="80" autofocus>
-    <p id="createListError" role="alert"></p>
+<dialog id="addProductDialog" aria-labelledby="addProductTitle">
+  <form id="addProductForm">
+    <h2 id="addProductTitle">Новый товар</h2>
+    <label for="productName">Название</label>
+    <input id="productName" name="name" placeholder="Что купить?" required maxlength="120" autofocus>
+    <label for="productQuantity">Количество</label>
+    <input id="productQuantity" name="quantity" placeholder="Например, 2 кг" maxlength="40">
+    <label for="productPrice">Цена, ₽</label>
+    <input id="productPrice" name="price" type="number" min="0" step="0.01" inputmode="decimal">
+    <p id="addProductError" role="alert"></p>
     <div class="row dialog-actions">
-      <button class="btn alt" id="cancelList" type="button">Отмена</button>
-      <button class="btn" id="submitList">Создать</button>
+      <button class="btn alt" id="cancelProduct" type="button">Отмена</button>
+      <button class="btn" id="submitProduct">Добавить</button>
     </div>
   </form>
 </dialog>
@@ -172,7 +174,6 @@ const icons = {
   shopping: '<path d="M2 3h3l2.7 12h11.5l2.3-9H5.7"/><circle cx="9" cy="20" r="1.7" fill="currentColor" stroke="none"/><circle cx="18" cy="20" r="1.7" fill="currentColor" stroke="none"/>',
   budget: '<path d="M4 6V5.5A2 2 0 0 1 5.7 3.5l12-1.5A2 2 0 0 1 20 4v2M20 6H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h15a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2Zm2 5.5h-4a2 2 0 0 0 0 4h4"/>',
   plus: '<path d="M12 4v16M4 12h16" stroke-width="2"/>',
-  chevron: '<path d="m5 9 7 7 7-7" stroke-width="2"/>',
   more: '<circle cx="5" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="2" fill="currentColor" stroke="none"/>',
   filters: '<path d="M2 6h12m4 0h4M2 12h20M2 18h5m4 0h11"/><circle cx="16" cy="6" r="2"/><circle cx="9" cy="18" r="2"/>',
   heart: '<path d="M12 21C9 18.9 2 13.7 2 8.4 2 3.4 8.4 1.7 12 6c3.6-4.3 10-2.6 10 2.4 0 5.3-7 10.5-10 12.6Z" fill="#f55070" stroke="#e63053" stroke-width="1.1"/><path d="M4.8 7.7c.5-1.2 1.4-1.7 2.4-1.8" stroke="#ff9bb0"/>',
@@ -202,25 +203,19 @@ document.querySelectorAll('[data-tab]').forEach(button => {
   button.onclick = () => showTab(button.dataset.tab);
 });
 $('authForm').onsubmit=async e=>{e.preventDefault();$('authError').textContent='Входим…';const {error}=await sb.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});$('authError').textContent=error?error.message:'';if(!error)await init()};
-let spaces = [];
 let purchaseFilter = 'all';
 let purchaseOrder = 'purchased';
 let refreshVersion = 0;
 let popoverId = null;
 
-async function loadSpace(preferredId) {
+async function loadSpace() {
   const {data, error} = await sb.from('space_members')
-    .select('space_id,spaces(id,name,created_at)').eq('user_id', user.id);
+    .select('space_id,spaces(id,name)').eq('user_id', user.id).limit(1);
   if (error) {
     alert(error.message);
-    return false;
+    return;
   }
-  spaces = (data || []).map(row => row.spaces).filter(Boolean).sort(
-    (a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id)
-  );
-  const savedId = localStorage.getItem('shopping-list-' + user.id);
-  space = spaces.find(list => list.id === (preferredId || savedId)) || spaces[0] || null;
-  return true;
+  space = data?.[0]?.spaces || null;
 }
 
 async function subscribeToList() {
@@ -237,24 +232,6 @@ async function subscribeToList() {
     .on('postgres_changes', {event: '*', schema: 'public', table: 'meals', filter: 'space_id=eq.' + currentId}, onChange)
     .subscribe();
   await refresh();
-}
-
-async function switchList(id) {
-  popoverId = null;
-  if (space.id === id) {
-    render();
-    return;
-  }
-  const next = spaces.find(list => list.id === id);
-  if (!next) return;
-  space = next;
-  localStorage.setItem('shopping-list-' + user.id, id);
-  items = [];
-  members = [];
-  meals = [];
-  purchaseFilter = 'all';
-  render();
-  await subscribeToList();
 }
 
 async function refresh() {
@@ -314,9 +291,6 @@ function renderHome(done, pct) {
   ].map(([key, label, count]) =>
     `<button type="button" class="filter-chip" data-purchase-filter="${key}" aria-pressed="${purchaseFilter === key}">${label} ${count}</button>`
   ).join('');
-  const listOptions = spaces.map(list =>
-    `<button type="button" data-list-id="${escape(list.id)}" aria-current="${list.id === space.id}">${escape(list.name)}</button>`
-  ).join('');
   const previewRows = preview.map(item => {
     const buyer = item.purchased && members.find(member => member.user_id === item.purchased_by);
     return `<div class="preview-item${item.purchased ? ' done' : ''}">
@@ -327,12 +301,11 @@ function renderHome(done, pct) {
   $('home').innerHTML = `
     <div class="hero-reference">
       <div class="hero-heading">
-        <h2><button type="button" class="hero-title" data-popover="listPicker" aria-controls="listPicker" aria-expanded="false"><span class="tree-emoji" aria-hidden="true">🎄</span><span>${escape(space.name)}</span>${icon('chevron')}</button></h2>
+        <h2 class="hero-title"><span class="tree-emoji" aria-hidden="true">🎄</span><span>${escape(space.name)}</span></h2>
         <button type="button" class="icon-button hero-menu" data-popover="heroActions" aria-controls="heroActions" aria-expanded="false" aria-label="Действия со списком">${icon('more')}</button>
       </div>
       <p>Общий список покупок и меню</p>
       <div class="hero-people"><div class="people">${avatars}</div>Совместный список</div>
-      <div id="listPicker" class="popover" hidden>${listOptions}</div>
       <div id="heroActions" class="popover" hidden>
         <button type="button" id="goShopping">Управление покупками</button>
         <button type="button" id="logout">Выйти</button>
@@ -348,7 +321,7 @@ function renderHome(done, pct) {
     <section class="shopping-preview" aria-labelledby="shoppingPreviewTitle">
       <div class="row between list-heading">
         <h2 id="shoppingPreviewTitle">Список покупок</h2>
-        <button type="button" class="new-list" id="newList">${icon('plus')} Новый список</button>
+        <button type="button" class="new-product" id="newProduct">${icon('plus')} Новый товар</button>
       </div>
       <div class="filters">
         <div class="filter-row">${filterControls}<button type="button" class="icon-button filter-menu" data-popover="filterOptions" aria-controls="filterOptions" aria-expanded="false" aria-label="Сортировка покупок">${icon('filters')}</button></div>
@@ -370,12 +343,11 @@ function renderHome(done, pct) {
   });
   $('goShopping').onclick = () => showTab('shopping');
   $('logout').onclick = async () => { await sb.auth.signOut(); location.reload(); };
-  $('newList').onclick = () => {
-    $('createListError').textContent = '';
-    $('newListName').value = '';
-    $('createListDialog').showModal();
+  $('newProduct').onclick = () => {
+    $('addProductError').textContent = '';
+    $('addProductForm').reset();
+    $('addProductDialog').showModal();
   };
-  document.querySelectorAll('[data-list-id]').forEach(button => button.onclick = () => switchList(button.dataset.listId));
   document.querySelectorAll('[data-purchase-filter]').forEach(button => {
     button.onclick = () => {
       purchaseFilter = button.dataset.purchaseFilter;
@@ -396,31 +368,44 @@ function renderHome(done, pct) {
   });
 }
 
-$('cancelList').onclick = () => $('createListDialog').close();
-$('createListForm').onsubmit = async event => {
+async function insertPurchase(form) {
+  const fields = new FormData(form);
+  const name = String(fields.get('name') || '').trim();
+  if (!name) return {error: {message: 'Введите название товара.'}};
+  const price = fields.get('price');
+  return sb.from('shopping_items').insert({
+    space_id: space.id,
+    name,
+    quantity: String(fields.get('quantity') || '').trim(),
+    price: price ? Number(price) : null,
+    created_by: user.id
+  }).select('id').single();
+}
+
+$('cancelProduct').onclick = () => $('addProductDialog').close();
+$('addProductDialog').addEventListener('cancel', event => {
+  if ($('submitProduct').disabled) event.preventDefault();
+});
+$('addProductForm').onsubmit = async event => {
   event.preventDefault();
-  const name = $('newListName').value.trim();
-  if (!name) {
-    $('createListError').textContent = 'Введите название списка.';
-    return;
-  }
-  $('createListError').textContent = '';
-  $('submitList').disabled = true;
+  $('addProductError').textContent = '';
+  $('submitProduct').disabled = true;
+  $('cancelProduct').disabled = true;
   try {
-    const {data, error} = await sb.rpc('create_shopping_list', {source_space: space.id, list_name: name});
+    const {data, error} = await insertPurchase(event.currentTarget);
     if (error) {
-      $('createListError').textContent = error.code === 'PGRST202'
-        ? 'Создание списков нужно включить в Supabase.'
-        : error.message;
+      $('addProductError').textContent = error.message;
       return;
     }
-    if (!await loadSpace(space.id)) return;
-    $('createListDialog').close();
-    await switchList(data);
-  } catch {
-    $('createListError').textContent = 'Не удалось связаться с Supabase. Попробуйте ещё раз.';
+    $('addProductDialog').close();
+    if (purchaseFilter === 'purchased') purchaseFilter = 'all';
+    await refresh();
+    $('home').querySelector('[data-check="' + CSS.escape(data.id) + '"]')
+      ?.closest('.preview-item').scrollIntoView({block: 'nearest'});
+    $('newProduct')?.focus({preventScroll: true});
   } finally {
-    $('submitList').disabled = false;
+    $('submitProduct').disabled = false;
+    $('cancelProduct').disabled = false;
   }
 };
 
@@ -439,7 +424,22 @@ function render(){if(!user)return;if(!space){$('headerPeople').innerHTML='';$('h
 const done=items.filter(x=>x.purchased).length,pct=items.length?Math.round(done/items.length*100):0,total=items.reduce((a,x)=>a+(x.purchased?Number(x.price||0):0),0);
 renderHome(done, pct);
 $('shopping').innerHTML='<div class="row between"><h2 class="section-title">'+icon('shopping')+' Покупки</h2><span class="pill">'+done+'/'+items.length+'</span></div><div class="card"><form id="addItem"><input name="name" placeholder="Что купить?" maxlength="120" required><div class="row"><input name="quantity" placeholder="Количество (например, 2 кг)" maxlength="40"><input name="price" type="number" min="0" step="0.01" placeholder="Цена ₽"></div><button class="btn">+ Добавить</button></form></div><div class="card">'+(items.length?[...items].sort((a,b)=>Number(a.purchased)-Number(b.purchased)).map(i=>'<div class="item row '+(i.purchased?'done':'')+'"><input class="check" type="checkbox" data-check="'+i.id+'" '+(i.purchased?'checked':'')+'><div class="grow"><div class="itemname">'+escape(i.name)+'</div><div class="muted small">'+escape(i.quantity||'')+(i.price?' · '+Number(i.price).toLocaleString('ru-RU')+' ₽':'')+(i.purchased?' · Купил(а): '+escape(nameOf(i.purchased_by)):'')+'</div></div><button class="link" data-del="'+i.id+'" aria-label="Удалить">✕</button></div>').join(''):'<div class="empty">Пока пусто. Добавьте первую покупку!</div>')+'</div>';
-$('addItem').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const {error}=await sb.from('shopping_items').insert({space_id:space.id,name:String(f.get('name')).trim(),quantity:String(f.get('quantity')||''),price:f.get('price')?Number(f.get('price')):null,created_by:user.id});if(error)alert(error.message);else{e.target.reset();await refresh()}};
+$('addItem').onsubmit = async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const submit = form.querySelector('button');
+  submit.disabled = true;
+  try {
+    const {error} = await insertPurchase(form);
+    if (error) alert(error.message);
+    else {
+      form.reset();
+      await refresh();
+    }
+  } finally {
+    submit.disabled = false;
+  }
+};
 document.querySelectorAll('[data-check]').forEach(el=>el.onchange=async()=>{const checked=el.checked;const {error}=await sb.from('shopping_items').update({purchased:checked,purchased_by:checked?user.id:null,purchased_at:checked?new Date().toISOString():null}).eq('id',el.dataset.check);if(error)alert(error.message);await refresh()});
 document.querySelectorAll('[data-del]').forEach(el=>el.onclick=async()=>{if(!confirm('Удалить покупку?'))return;const {error}=await sb.from('shopping_items').delete().eq('id',el.dataset.del);if(error)alert(error.message);await refresh()});
 $('meals').innerHTML='<h2 class="section-title">'+icon('meals')+' Блюда</h2><div class="card"><form id="addMeal"><input name="name" placeholder="Название блюда" maxlength="120" required><button class="btn">+ Добавить блюдо</button></form></div>'+meals.map(m=>'<div class="card"><div class="row between"><div class="title">'+escape(m.name)+'</div><button class="link" data-mealdel="'+m.id+'">Удалить</button></div><p class="muted small">Добавляйте ингредиенты в покупки ниже</p><form data-ingredient="'+m.id+'"><input name="name" placeholder="Ингредиент" required maxlength="120"><input name="quantity" placeholder="Количество"><button class="btn alt">+ В покупки</button></form></div>').join('');
