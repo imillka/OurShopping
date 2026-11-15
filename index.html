@@ -1,27 +1,453 @@
-<!doctype html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f7f9fc"><title>Наши покупки</title><style>*{box-sizing:border-box}html{-webkit-text-size-adjust:100%;text-size-adjust:100%;overflow-x:hidden}body{margin:0;background:#fff;color:#111827;font:15px -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;overflow-x:hidden}button,input,select{font-family:inherit}button{cursor:pointer}input,select,textarea{font-size:16px!important}main{max-width:560px;margin:auto;padding:27px 22px 118px}h1{font-size:clamp(27px,7vw,36px);letter-spacing:-1.3px;font-weight:800;margin:5px 0}h2{font-size:22px;letter-spacing:-.6px;margin:0 0 14px}.muted{color:#858b98}.card{background:#fff;border:1px solid #edf0f5;border-radius:25px;padding:19px;margin:17px 0;box-shadow:0 8px 26px #192d4a0b}.row{display:flex;align-items:center;gap:12px}.between{justify-content:space-between}.grow{flex:1;min-width:0}.pill{background:#eaf2ff;color:#2376ec;border-radius:30px;padding:8px 13px;font-size:13px;font-weight:600}.btn{border:0;border-radius:16px;padding:12px 17px;background:#e5f0ff;color:#1673ec;font-weight:700}.btn.alt{background:#f2f4f8;color:#5c6778}.btn.danger{background:#fff0f0;color:#bc4a4a}input,select{width:100%;min-width:0;border:1px solid #e6eaf1;border-radius:14px;padding:13px;background:#fff;margin:7px 0;outline-color:#79aafa}.item{padding:15px 2px;border-bottom:1px solid #edf0f4;min-width:0}.item:last-child{border:0}.check{width:23px;height:23px;accent-color:#30be4c;flex-shrink:0}.itemname{font-size:16px;font-weight:500;overflow-wrap:anywhere}.done .itemname{text-decoration:line-through;color:#9299a5}.small{font-size:12px}.nav{position:fixed;bottom:0;left:0;right:0;background:#ffffffef;border-top:1px solid #e8ebf0;display:flex;justify-content:center;padding:12px 8px max(15px,env(safe-area-inset-bottom));backdrop-filter:blur(20px);z-index:10}.nav button{background:none;border:0;color:#777f8b;flex:1;max-width:140px;padding:5px;font-size:12px}.nav button.active{color:#1378f7;font-weight:750}.nav span{display:block;font-size:24px;margin-bottom:5px}.hidden{display:none!important}.bar{height:10px;background:#e5e9ef;border-radius:10px;overflow:hidden}.bar i{display:block;background:#2cc849;height:100%;border-radius:10px}.avatar{display:inline-grid;place-items:center;width:36px;height:36px;border:3px solid #fff;margin-left:-7px;border-radius:50%;background:#e5edff;color:#4178d7;font-weight:700;box-shadow:0 1px 4px #0001}.actions{display:flex;gap:8px;flex-wrap:wrap}.actions button{padding:7px 10px}.notice{background:#fff4d8;border-radius:12px;padding:12px;margin:12px 0;color:#755b20}label{display:block;margin-top:12px;font-weight:600}.link{border:0;background:none;color:#7d8b9d}.title{font-weight:750;font-size:17px}.hero{background:#f7e9e3 url('./new-year-banner.jpg') center center/cover no-repeat;border:0;overflow:hidden;position:relative;padding:22px}.hero:before{display:none}.hero h2{font-size:25px;margin:5px 0 4px}.hero .row{position:relative}.hero .btn{background:#e5f0ff}.hero p{margin:13px 0}.empty{padding:25px;text-align:center;color:#8893a5}#app>header{padding:12px 0 19px}#app>header:before{content:"";display:none}#app>header .btn{font-size:13px;padding:11px 14px}#home>.card:not(.hero){box-shadow:none}#home>.card:not(.hero) .btn{font-size:13px}#shopping>h2,#meals>h2,#budget>h2{margin:20px 0}.item .muted{margin-top:5px}#auth{margin-top:15vh}#auth .btn{background:#1979ef;color:white}button:active{transform:scale(.98)}@media(max-width:390px){main{padding-left:16px;padding-right:16px}.hero h2{font-size:22px}.avatar{width:31px;height:31px}.card{padding:16px}}</style></head><body><main><div id="auth" class="card"><h1>🛒 Наши покупки</h1><p class="muted">Общие планы, блюда и покупки — в одном месте.</p><form id="authForm"><label>Электронная почта</label><input id="email" type="email" autocomplete="email" required><label>Пароль</label><input id="password" type="password" autocomplete="current-password" minlength="6" required><button class="btn" style="width:100%;margin-top:15px">Войти</button></form><p id="authError" class="muted small"></p><p class="small muted">Аккаунты создаются по приглашению администратора.</p></div><div id="app" class="hidden"><header class="row between"><div><div class="muted small">Ваши общие планы ✨</div><h1>Наши покупки</h1></div><button id="logout" class="btn alt">Выйти</button></header><section id="home"></section><section id="shopping" class="hidden"></section><section id="meals" class="hidden"></section><section id="budget" class="hidden"></section></div></main><nav id="nav" class="nav hidden"><button data-tab="home" class="active"><span>🏠</span>Главная</button><button data-tab="shopping"><span>🛒</span>Покупки</button><button data-tab="meals"><span>🍽️</span>Блюда</button><button data-tab="budget"><span>💳</span>Бюджет</button></nav><script type="module">
+<!doctype html><html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f7f9fc">
+<title>Наши покупки</title>
+<style>
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;overflow-x:hidden}
+body{margin:0;background:#fff;color:#111827;font:15px -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;overflow-x:hidden}
+button,input,select{font-family:inherit}
+button{cursor:pointer}
+input,select,textarea{font-size:16px!important}
+main{max-width:560px;margin:auto;padding:27px 22px 118px}
+h1{font-size:clamp(27px,7vw,36px);letter-spacing:-1.3px;font-weight:800;margin:5px 0}
+h2{font-size:22px;letter-spacing:-.6px;margin:0 0 14px}
+.muted{color:#858b98}
+.card{background:#fff;border:1px solid #edf0f5;border-radius:25px;padding:19px;margin:17px 0;box-shadow:0 8px 26px #192d4a0b}
+.row{display:flex;align-items:center;gap:12px}
+.between{justify-content:space-between}
+.grow{flex:1;min-width:0}
+.pill{background:#eaf2ff;color:#2376ec;border-radius:30px;padding:8px 13px;font-size:13px;font-weight:600}
+.btn{border:0;border-radius:16px;padding:12px 17px;background:#e5f0ff;color:#1673ec;font-weight:700}
+.btn.alt{background:#f2f4f8;color:#5c6778}
+.btn.danger{background:#fff0f0;color:#bc4a4a}
+input,select{width:100%;min-width:0;border:1px solid #e6eaf1;border-radius:14px;padding:13px;background:#fff;margin:7px 0;outline-color:#79aafa}
+.item{padding:15px 2px;border-bottom:1px solid #edf0f4;min-width:0}
+.item:last-child{border:0}
+.check{width:23px;height:23px;accent-color:#30be4c;flex-shrink:0}
+.itemname{font-size:16px;font-weight:500;overflow-wrap:anywhere}
+.done .itemname{text-decoration:line-through;color:#9299a5}
+.small{font-size:12px}
+.nav{position:fixed;bottom:0;left:0;right:0;background:#ffffffef;border-top:1px solid #e8ebf0;display:flex;justify-content:center;padding:12px 8px max(15px,env(safe-area-inset-bottom));backdrop-filter:blur(20px);z-index:10}
+.nav button{background:none;border:0;color:#777f8b;flex:1;max-width:140px;padding:5px;font-size:12px}
+.nav button.active{color:#1378f7;font-weight:750}
+.nav span{display:block;font-size:24px;margin-bottom:5px}
+.hidden{display:none!important}
+.bar{height:10px;background:#e5e9ef;border-radius:10px;overflow:hidden}
+.bar i{display:block;background:#2cc849;height:100%;border-radius:10px}
+label{display:block;margin-top:12px;font-weight:600}
+.link{border:0;background:none;color:#7d8b9d}
+.title{font-weight:750;font-size:17px}
+.empty{padding:25px;text-align:center;color:#8893a5}
+#shopping>h2,#meals>h2,#budget>h2{margin:20px 0}
+.item .muted{margin-top:5px}
+#auth{margin-top:15vh}
+#auth .btn{background:#1979ef;color:white}
+button:active{transform:scale(.98)}
+@media(max-width:390px){main{padding-left:16px;padding-right:16px}
+.card{padding:16px}
+body { background: #fdfdfe; color: #0a1020; }
+main { width: 100%; max-width: 600px; }
+#app > .app-header { padding: 30px 5px 26px; gap: 10px; }
+.app-header h1 { margin: 0; font-size: clamp(25px, 7.25vw, 36px); line-height: 1.12; letter-spacing: -.04em; }
+#app { --blue: #0066df; --soft-blue: #deebfd; --ink: #0a1020; --secondary: #303646; }
+#app > section { min-width: 0; }
+main:has(#app:not(.hidden)) { padding: env(safe-area-inset-top, 0px) clamp(11px, 3vw, 22px) calc(88px + env(safe-area-inset-bottom, 0px)); }
+.icon { display: inline-block; width: 1em; height: 1em; vertical-align: middle; flex: none; }
+.icon-button { display: inline-grid; place-items: center; padding: 0; border: 0; background: none; color: var(--secondary); }
+.icon-button .icon { width: 22px; height: 22px; }
+.people { display: inline-flex; align-items: center; flex: none; }
+.person { position: relative; display: inline-grid; place-items: center; width: 28px; height: 28px; flex: none; border-radius: 50%; font-size: 15px; line-height: 1; font-weight: 750; background: #d4e5fd; color: #0752a1; }
+.person--pink { background: #fbd6e0; color: #e3365e; }
+.person .icon { width: 60%; height: 60%; }
+.app-header .people { gap: 5px; }
+.app-header .person { width: clamp(32px, 10.5vw, 45px); height: clamp(32px, 10.5vw, 45px); font-size: clamp(18px, 5.5vw, 25px); }
+.app-header .person::after { content: ""; position: absolute; bottom: 1px; right: 0; width: 8px; height: 8px; background: #20c234; border: 2px solid #fdfdfe; border-radius: 50%; }
+.hero-reference { position: relative; isolation: isolate; min-height: clamp(115px, 31vw, 166px); border-radius: 17px; padding: 13px 11px 13px 15px; background: #f7e9e3 url('./new-year-banner.jpg') center / cover no-repeat; box-shadow: 0 5px 15px #26334d0a; }
+.hero-reference::before { content: ""; position: absolute; z-index: -1; inset: 0; border-radius: inherit; background: linear-gradient(90deg, #fff8f32c, #fff8f35e 43%, transparent 76%); }
+.hero-heading { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.hero-heading h2 { margin: 0; min-width: 0; }
+.hero-title { display: flex; align-items: center; gap: clamp(4px, 1.4vw, 8px); color: var(--ink); border: 0; background: none; padding: 0; text-align: left; font-size: clamp(17px, 5.05vw, 27px); line-height: 1.15; font-weight: 800; letter-spacing: -.035em; }
+.hero-title .tree-emoji { font-size: 1.2em; }
+.hero-title .icon { width: .75em; margin-left: 2px; }
+.hero-menu { width: 34px; height: 28px; border-radius: 99px; flex: none; background: #fffffff1; }
+.hero-menu .icon { width: 18px; height: 18px; }
+.hero-reference p { margin: 5px 0 13px; color: var(--secondary); font-size: clamp(12px, 3.35vw, 17px); }
+.hero-people { display: flex; align-items: center; gap: 6px; font-size: clamp(11px, 3.05vw, 16px); color: var(--secondary); }
+.hero-people .person { width: 30px; height: 30px; border: 2px solid #fff; }
+.hero-people .person + .person { margin-left: -3px; }
+.progress-card { margin: 13px 0 0; padding: 12px 14px; border: 1px solid #eff0f4; border-radius: 14px; box-shadow: 0 4px 10px #233d7310; }
+.progress-card h2 { font-size: clamp(16px, 4.65vw, 24px); letter-spacing: -.025em; margin: 0 0 7px; }
+.progress-card .row { gap: 17px; color: var(--secondary); font-size: clamp(13px, 3.6vw, 17px); }
+.progress-card .bar { height: 12px; flex: 1; background: #e5e7f1; }
+.progress-card .bar i { background: #22c431; }
+.shopping-preview { margin-top: 24px; }
+.shopping-preview .list-heading { gap: 6px; padding: 0 2px 0 3px; }
+.shopping-preview h2 { min-width: 0; margin: 0; font-size: clamp(16px, 5.1vw, 26px); letter-spacing: -.045em; }
+.new-list { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: none; padding: 8px clamp(9px, 3.5vw, 17px); border: 0; border-radius: 999px; background: var(--soft-blue); color: var(--blue); font-size: clamp(12px, 3.45vw, 17px); font-weight: 640; }
+.new-list .icon { width: 1.25em; height: 1.25em; }
+.filter-row { display: flex; align-items: center; gap: clamp(5px, 2.4vw, 12px); margin: 13px 3px 16px; }
+.filter-chip { flex: none; border: 0; border-radius: 999px; background: #eff0f5; color: var(--ink); padding: 7px clamp(7px, 3.65vw, 17px); font-size: clamp(11px, 3.45vw, 17px); white-space: nowrap; }
+.filter-chip[aria-pressed="true"] { background: var(--soft-blue); color: #074fa7; }
+.filter-menu { margin-left: auto; width: 30px; height: 30px; flex: none; }
+.preview-items { --item-height: 42px; margin: 0 -7px; padding: 2px 11px; border: 1px solid #f0f1f5; border-radius: 18px; box-shadow: 0 4px 10px #26334d05; max-height: calc(var(--item-height) * 6 + 6px); overflow: auto; }
+.preview-item { min-height: var(--item-height); display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: stretch; column-gap: 13px; padding-left: 4px; }
+.preview-item .check { appearance: none; align-self: center; width: 21px; height: 21px; margin: 0; padding: 0; border: 1.5px solid #303646; border-radius: 5px; cursor: pointer; }
+.preview-item .check:checked { border-color: #22c431; background: #22c431 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m6 12 4 4 8-8' fill='none' stroke='white' stroke-width='2.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 20px no-repeat; }
+.preview-item .grow { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 5px 3px 5px 1px; border-bottom: 1px solid #e7e8ed; }
+.preview-item:last-child .grow { border-bottom: 0; }
+.preview-item .itemname { font-size: clamp(13px, 3.85vw, 19px); color: #10131a; }
+.preview-item.done .itemname { color: #303646; text-decoration-thickness: 1px; }
+.nav { min-height: 68px; padding: 8px 6px calc(11px + env(safe-area-inset-bottom, 0px)); border: 1px solid #e9eaf0; border-bottom: 0; border-radius: 16px 16px 0 0; background: #fdfdfeef; }
+.nav button { padding: 0 2px; color: #303646; font-size: clamp(11px, 3.05vw, 15px); }
+.nav button .icon { display: block; width: 27px; height: 27px; margin: 0 auto 3px; }
+.nav button.active { color: #0068e8; font-weight: 650; }
+.nav .home-fill { fill: none; }
+.nav button.active .home-fill { fill: currentColor; }
+.popover { position: absolute; z-index: 2; display: grid; gap: 2px; min-width: 150px; max-width: 100%; padding: 6px; border: 1px solid #e7e9f0; border-radius: 12px; background: #fff; box-shadow: 0 6px 24px #17284a1b; }
+.popover button { border: 0; padding: 8px; border-radius: 6px; text-align: left; background: none; color: var(--ink); font-size: 14px; }
+.popover button:hover, .popover button[aria-current="true"] { background: var(--soft-blue); }
+.hero-reference .popover { top: 45px; }
+#listPicker { left: 10px; }
+#heroActions, #filterOptions { right: 0; }
+.filters { position: relative; }
+#filterOptions { top: 100%; }
+#createListDialog { width: min(360px, calc(100% - 32px)); padding: 20px; border: 1px solid #e9edf4; border-radius: 18px; color: #0a1020; }
+#createListDialog::backdrop { background: #10182745; }
+#createListDialog .dialog-actions { justify-content: flex-end; margin-top: 12px; }
+#createListError { color: #b72542; margin: 6px 0 0; }
+.section-title { display: inline-flex; align-items: center; gap: 8px; }
+@media (min-width: 500px) {
+  .hero-reference { padding: 17px 18px 17px 20px; }
+  #app > .app-header { padding-bottom: 30px; }
+  .preview-items { --item-height: 51px; }
+}
+.popover[hidden] { display: none; }
+.hero-title span { overflow-wrap: anywhere; }
+.hero-title .tree-emoji { flex: none; }
+.app-header .people { max-width: 48%; overflow: auto; scrollbar-width: none; }
+.hero-people .people { max-width: 48%; flex-wrap: wrap; }
+
+</style>
+</head>
+<body>
+<main>
+<div id="auth" class="card"><h1>🛒 Наши покупки</h1><p class="muted">Общие планы, блюда и покупки — в одном месте.</p><form id="authForm"><label>Электронная почта</label><input id="email" type="email" autocomplete="email" required><label>Пароль</label><input id="password" type="password" autocomplete="current-password" minlength="6" required><button class="btn" style="width:100%;margin-top:15px">Войти</button></form><p id="authError" class="muted small"></p><p class="small muted">Аккаунты создаются по приглашению администратора.</p></div>
+<div id="app" class="hidden">
+  <header class="row between app-header"><h1>Наши покупки</h1><div class="people" id="headerPeople"></div></header>
+  <section id="home"></section>
+  <section id="shopping" class="hidden"></section>
+  <section id="meals" class="hidden"></section>
+  <section id="budget" class="hidden"></section>
+</div>
+</main>
+<nav id="nav" class="nav hidden" aria-label="Основное меню">
+  <button type="button" data-tab="home" class="active" aria-current="page">Главная</button>
+  <button type="button" data-tab="meals">Блюда</button>
+  <button type="button" data-tab="shopping">Покупки</button>
+  <button type="button" data-tab="budget">Бюджет</button>
+</nav>
+<dialog id="createListDialog" aria-labelledby="createListTitle">
+  <form id="createListForm">
+    <h2 id="createListTitle">Новый список</h2>
+    <label for="newListName">Название списка</label>
+    <input id="newListName" required maxlength="80" autofocus>
+    <p id="createListError" role="alert"></p>
+    <div class="row dialog-actions">
+      <button class="btn alt" id="cancelList" type="button">Отмена</button>
+      <button class="btn" id="submitList">Создать</button>
+    </div>
+  </form>
+</dialog>
+<script type="module">
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2';
 const sb=createClient('https://jqvgvaoihmwwopamqobx.supabase.co','sb_publishable_atkJptARPDCq_JxYMKUveA_oPbCjQuR',{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
 const $=id=>document.getElementById(id);const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));let user=null,space=null,items=[],meals=[],members=[],tab='home',channel=null;
 const nameOf=id=>members.find(m=>m.user_id===id)?.display_name||'Участник';
-function showTab(t){tab=t;for(const x of ['home','shopping','meals','budget'])$(x).classList.toggle('hidden',x!==t);document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));render()}
-document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+const icons = {
+  home: '<path class="home-fill" d="m3 10 9-7 9 7h-2v10h-5v-6h-4v6H5V10Z" stroke-width="1.5"/>',
+  meals: '<path d="M6 16v-3.5a4.2 4.2 0 0 1 .9-8.3H7a5.5 5.5 0 0 1 10 0h.1a4.2 4.2 0 0 1 .9 8.3V16m-12 0h12v3.2a.8.8 0 0 1-.8.8H6.8a.8.8 0 0 1-.8-.8Z"/>',
+  shopping: '<path d="M2 3h3l2.7 12h11.5l2.3-9H5.7"/><circle cx="9" cy="20" r="1.7" fill="currentColor" stroke="none"/><circle cx="18" cy="20" r="1.7" fill="currentColor" stroke="none"/>',
+  budget: '<path d="M4 6V5.5A2 2 0 0 1 5.7 3.5l12-1.5A2 2 0 0 1 20 4v2M20 6H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h15a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2Zm2 5.5h-4a2 2 0 0 0 0 4h4"/>',
+  plus: '<path d="M12 4v16M4 12h16" stroke-width="2"/>',
+  chevron: '<path d="m5 9 7 7 7-7" stroke-width="2"/>',
+  more: '<circle cx="5" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="2" fill="currentColor" stroke="none"/>',
+  filters: '<path d="M2 6h12m4 0h4M2 12h20M2 18h5m4 0h11"/><circle cx="16" cy="6" r="2"/><circle cx="9" cy="18" r="2"/>',
+  heart: '<path d="M12 21C9 18.9 2 13.7 2 8.4 2 3.4 8.4 1.7 12 6c3.6-4.3 10-2.6 10 2.4 0 5.3-7 10.5-10 12.6Z" fill="#f55070" stroke="#e63053" stroke-width="1.1"/><path d="M4.8 7.7c.5-1.2 1.4-1.7 2.4-1.8" stroke="#ff9bb0"/>',
+};
+const icon = name => `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]}</svg>`;
+const person = member => {
+  const name = member.display_name?.trim() || 'Участник';
+  const heart = name.startsWith('❤');
+  return `<span class="person${heart ? ' person--pink' : ''}" title="${escape(name)}" aria-label="${escape(name)}">${heart ? icon('heart') : escape(name[0].toUpperCase())}</span>`;
+};
+
+function showTab(nextTab) {
+  tab = nextTab;
+  popoverId = null;
+  for (const id of ['home', 'shopping', 'meals', 'budget']) $(id).classList.toggle('hidden', id !== tab);
+  document.querySelectorAll('[data-tab]').forEach(button => {
+    const active = button.dataset.tab === tab;
+    button.classList.toggle('active', active);
+    if (active) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  });
+  window.scrollTo(0, 0);
+  render();
+}
+document.querySelectorAll('[data-tab]').forEach(button => {
+  button.insertAdjacentHTML('afterbegin', icon(button.dataset.tab));
+  button.onclick = () => showTab(button.dataset.tab);
+});
 $('authForm').onsubmit=async e=>{e.preventDefault();$('authError').textContent='Входим…';const {error}=await sb.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});$('authError').textContent=error?error.message:'';if(!error)await init()};
-$('logout').onclick=async()=>{await sb.auth.signOut();location.reload()};
-async function init(){const {data:{user:u}}=await sb.auth.getUser();user=u;$('auth').classList.toggle('hidden',!!user);$('app').classList.toggle('hidden',!user);$('nav').classList.toggle('hidden',!user);if(!user)return;await loadSpace();if(space){await refresh();if(channel)await sb.removeChannel(channel);channel=sb.channel('shared-'+space.id).on('postgres_changes',{event:'*',schema:'public',table:'shopping_items',filter:'space_id=eq.'+space.id},()=>refresh()).on('postgres_changes',{event:'*',schema:'public',table:'meals',filter:'space_id=eq.'+space.id},()=>refresh()).subscribe()}else render()}
-async function loadSpace(){const {data,error}=await sb.from('space_members').select('space_id,spaces(id,name)').eq('user_id',user.id).limit(1);if(error){alert(error.message);return}space=data?.[0]?.spaces||null}
-async function refresh(){const [a,b,c]=await Promise.all([sb.from('shopping_items').select('*').eq('space_id',space.id).order('created_at'),sb.from('meals').select('*').eq('space_id',space.id).order('created_at'),sb.from('space_members').select('user_id,display_name').eq('space_id',space.id)]);for(const r of [a,b,c])if(r.error){alert(r.error.message);return}items=a.data||[];meals=b.data||[];members=c.data||[];render()}
-function render(){if(!user)return;if(!space){$('home').innerHTML='<div class="card"><h2>Ждём приглашения 💌</h2><p>Аккаунт создан, но ещё не добавлен в общее пространство. Добавьте пользователя через SQL из README.</p></div>';for(const id of ['shopping','meals','budget'])$(id).innerHTML='';return}
+let spaces = [];
+let purchaseFilter = 'all';
+let purchaseOrder = 'purchased';
+let refreshVersion = 0;
+let popoverId = null;
+
+async function loadSpace(preferredId) {
+  const {data, error} = await sb.from('space_members')
+    .select('space_id,spaces(id,name,created_at)').eq('user_id', user.id);
+  if (error) {
+    alert(error.message);
+    return false;
+  }
+  spaces = (data || []).map(row => row.spaces).filter(Boolean).sort(
+    (a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id)
+  );
+  const savedId = localStorage.getItem('shopping-list-' + user.id);
+  space = spaces.find(list => list.id === (preferredId || savedId)) || spaces[0] || null;
+  return true;
+}
+
+async function subscribeToList() {
+  const currentId = space.id;
+  if (channel) {
+    const previous = channel;
+    channel = null;
+    await sb.removeChannel(previous);
+  }
+  if (space?.id !== currentId || channel) return;
+  const onChange = () => { if (space?.id === currentId) void refresh(); };
+  channel = sb.channel('shared-' + currentId)
+    .on('postgres_changes', {event: '*', schema: 'public', table: 'shopping_items', filter: 'space_id=eq.' + currentId}, onChange)
+    .on('postgres_changes', {event: '*', schema: 'public', table: 'meals', filter: 'space_id=eq.' + currentId}, onChange)
+    .subscribe();
+  await refresh();
+}
+
+async function switchList(id) {
+  popoverId = null;
+  if (space.id === id) {
+    render();
+    return;
+  }
+  const next = spaces.find(list => list.id === id);
+  if (!next) return;
+  space = next;
+  localStorage.setItem('shopping-list-' + user.id, id);
+  items = [];
+  members = [];
+  meals = [];
+  purchaseFilter = 'all';
+  render();
+  await subscribeToList();
+}
+
+async function refresh() {
+  if (!space) return;
+  const listId = space.id;
+  const version = ++refreshVersion;
+  const [a,b,c] = await Promise.all([
+    sb.from('shopping_items').select('*').eq('space_id', listId).order('created_at'),
+    sb.from('meals').select('*').eq('space_id', listId).order('created_at'),
+    sb.from('space_members').select('user_id,display_name').eq('space_id', listId).order('display_name')
+  ]);
+  if (listId !== space?.id || version !== refreshVersion) return;
+  for (const result of [a,b,c]) {
+    if (result.error) {
+      alert(result.error.message);
+      return;
+    }
+  }
+  items = a.data || [];
+  meals = b.data || [];
+  members = (c.data || []).sort((a, b) => Number(a.display_name.startsWith('❤')) - Number(b.display_name.startsWith('❤')));
+  render();
+}
+
+function showPopover(id) {
+  popoverId = id === popoverId ? null : id;
+  document.querySelectorAll('[data-popover]').forEach(button => {
+    const expanded = button.dataset.popover === popoverId;
+    button.setAttribute('aria-expanded', String(expanded));
+    $(button.dataset.popover).hidden = !expanded;
+  });
+}
+
+document.addEventListener('click', event => {
+  if (popoverId && !event.target.closest('[data-popover], .popover')) showPopover(popoverId);
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && popoverId) {
+    const trigger = document.querySelector('[data-popover="' + popoverId + '"]');
+    showPopover(popoverId);
+    trigger?.focus();
+  }
+});
+
+function renderHome(done, pct) {
+  const avatars = members.map(person).join('');
+  $('headerPeople').innerHTML = avatars;
+  const scrollTop = $('previewItems')?.scrollTop || 0;
+  let preview = items.filter(item => purchaseFilter === 'all' || item.purchased === (purchaseFilter === 'purchased'));
+  if (purchaseOrder !== 'added') {
+    preview.sort((a, b) => (Number(b.purchased) - Number(a.purchased)) * (purchaseOrder === 'purchased' ? 1 : -1));
+  }
+  const filterControls = [
+    ['all', 'Все', items.length],
+    ['needed', 'Купить', items.length - done],
+    ['purchased', 'Куплено', done]
+  ].map(([key, label, count]) =>
+    `<button type="button" class="filter-chip" data-purchase-filter="${key}" aria-pressed="${purchaseFilter === key}">${label} ${count}</button>`
+  ).join('');
+  const listOptions = spaces.map(list =>
+    `<button type="button" data-list-id="${escape(list.id)}" aria-current="${list.id === space.id}">${escape(list.name)}</button>`
+  ).join('');
+  const previewRows = preview.map(item => {
+    const buyer = item.purchased && members.find(member => member.user_id === item.purchased_by);
+    return `<div class="preview-item${item.purchased ? ' done' : ''}">
+      <input class="check" type="checkbox" data-check="${escape(item.id)}" aria-label="${escape(item.name)}" ${item.purchased ? 'checked' : ''}>
+      <div class="grow"><span class="itemname">${escape(item.name)}${item.quantity ? ' — ' + escape(item.quantity) : ''}</span>${buyer ? person(buyer) : ''}</div>
+    </div>`;
+  }).join('');
+  $('home').innerHTML = `
+    <div class="hero-reference">
+      <div class="hero-heading">
+        <h2><button type="button" class="hero-title" data-popover="listPicker" aria-controls="listPicker" aria-expanded="false"><span class="tree-emoji" aria-hidden="true">🎄</span><span>${escape(space.name)}</span>${icon('chevron')}</button></h2>
+        <button type="button" class="icon-button hero-menu" data-popover="heroActions" aria-controls="heroActions" aria-expanded="false" aria-label="Действия со списком">${icon('more')}</button>
+      </div>
+      <p>Общий список покупок и меню</p>
+      <div class="hero-people"><div class="people">${avatars}</div>Совместный список</div>
+      <div id="listPicker" class="popover" hidden>${listOptions}</div>
+      <div id="heroActions" class="popover" hidden>
+        <button type="button" id="goShopping">Управление покупками</button>
+        <button type="button" id="logout">Выйти</button>
+      </div>
+    </div>
+    <div class="progress-card">
+      <h2>Куплено ${done} из ${items.length}</h2>
+      <div class="row">
+        <div class="bar" role="progressbar" aria-label="Купленные товары" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div>
+        <span>${pct} %</span>
+      </div>
+    </div>
+    <section class="shopping-preview" aria-labelledby="shoppingPreviewTitle">
+      <div class="row between list-heading">
+        <h2 id="shoppingPreviewTitle">Список покупок</h2>
+        <button type="button" class="new-list" id="newList">${icon('plus')} Новый список</button>
+      </div>
+      <div class="filters">
+        <div class="filter-row">${filterControls}<button type="button" class="icon-button filter-menu" data-popover="filterOptions" aria-controls="filterOptions" aria-expanded="false" aria-label="Сортировка покупок">${icon('filters')}</button></div>
+        <div id="filterOptions" class="popover" hidden>
+          <button type="button" data-purchase-order="purchased" aria-current="${purchaseOrder === 'purchased'}">Сначала куплено</button>
+          <button type="button" data-purchase-order="needed" aria-current="${purchaseOrder === 'needed'}">Сначала к покупке</button>
+          <button type="button" data-purchase-order="added" aria-current="${purchaseOrder === 'added'}">По порядку добавления</button>
+        </div>
+      </div>
+      <div class="preview-items" id="previewItems">${previewRows || '<div class="empty">' + (items.length ? 'В этой категории пока пусто' : 'Пока пусто. Добавьте первую покупку!') + '</div>'}</div>
+    </section>`;
+  $('previewItems').scrollTop = scrollTop;
+  document.querySelectorAll('[data-popover]').forEach(button => {
+    button.onclick = () => showPopover(button.dataset.popover);
+    if (button.dataset.popover === popoverId) {
+      button.setAttribute('aria-expanded', 'true');
+      $(popoverId).hidden = false;
+    }
+  });
+  $('goShopping').onclick = () => showTab('shopping');
+  $('logout').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+  $('newList').onclick = () => {
+    $('createListError').textContent = '';
+    $('newListName').value = '';
+    $('createListDialog').showModal();
+  };
+  document.querySelectorAll('[data-list-id]').forEach(button => button.onclick = () => switchList(button.dataset.listId));
+  document.querySelectorAll('[data-purchase-filter]').forEach(button => {
+    button.onclick = () => {
+      purchaseFilter = button.dataset.purchaseFilter;
+      popoverId = null;
+      $('previewItems').scrollTop = 0;
+      render();
+      document.querySelector('[data-purchase-filter="' + purchaseFilter + '"]').focus();
+    };
+  });
+  document.querySelectorAll('[data-purchase-order]').forEach(button => {
+    button.onclick = () => {
+      purchaseOrder = button.dataset.purchaseOrder;
+      popoverId = null;
+      $('previewItems').scrollTop = 0;
+      render();
+      document.querySelector('[data-popover="filterOptions"]').focus();
+    };
+  });
+}
+
+$('cancelList').onclick = () => $('createListDialog').close();
+$('createListForm').onsubmit = async event => {
+  event.preventDefault();
+  const name = $('newListName').value.trim();
+  if (!name) {
+    $('createListError').textContent = 'Введите название списка.';
+    return;
+  }
+  $('createListError').textContent = '';
+  $('submitList').disabled = true;
+  try {
+    const {data, error} = await sb.rpc('create_shopping_list', {source_space: space.id, list_name: name});
+    if (error) {
+      $('createListError').textContent = error.code === 'PGRST202'
+        ? 'Создание списков нужно включить в Supabase.'
+        : error.message;
+      return;
+    }
+    if (!await loadSpace(space.id)) return;
+    $('createListDialog').close();
+    await switchList(data);
+  } catch {
+    $('createListError').textContent = 'Не удалось связаться с Supabase. Попробуйте ещё раз.';
+  } finally {
+    $('submitList').disabled = false;
+  }
+};
+
+async function init() {
+  const {data: {user: currentUser}} = await sb.auth.getUser();
+  user = currentUser;
+  $('auth').classList.toggle('hidden', !!user);
+  $('app').classList.toggle('hidden', !user);
+  $('nav').classList.toggle('hidden', !user);
+  if (!user) return;
+  await loadSpace();
+  if (space) await subscribeToList();
+  else render();
+}
+function render(){if(!user)return;if(!space){$('headerPeople').innerHTML='';$('home').innerHTML='<div class="card"><h2>Ждём приглашения 💌</h2><p>Аккаунт создан, но ещё не добавлен в общее пространство. Попросите администратора добавить участника.</p><button class="btn alt" id="logout">Выйти</button></div>';$('logout').onclick=async()=>{await sb.auth.signOut();location.reload()};for(const id of ['shopping','meals','budget'])$(id).innerHTML='';return}
 const done=items.filter(x=>x.purchased).length,pct=items.length?Math.round(done/items.length*100):0,total=items.reduce((a,x)=>a+(x.purchased?Number(x.price||0):0),0);
-$('home').innerHTML='<div class="card hero"><div class="row between"><div><div class="muted small">🎄 Общий список покупок</div><h2>'+escape(space.name)+'</h2></div><div>'+members.map(m=>'<span class="avatar" title="'+escape(m.display_name)+'">'+escape(m.display_name?.[0]||'?')+'</span>').join(' ')+'</div></div><p>'+done+' из '+items.length+' покупок выполнено</p><div class="bar"><i style="width:'+pct+'%"></i></div><p class="muted small">'+pct+'% готово</p><button class="btn" id="goShopping">Открыть покупки →</button></div><div class="card"><h2>🍽️ Блюда</h2><p>'+meals.length+' запланировано</p><button class="btn alt" id="goMeals">Посмотреть блюда</button></div><div class="card"><h2>💰 Расходы</h2><div class="title">'+total.toLocaleString('ru-RU')+' ₽</div></div>';
-$('goShopping').onclick=()=>showTab('shopping');$('goMeals').onclick=()=>showTab('meals');
-$('shopping').innerHTML='<div class="row between"><h2>🛒 Покупки</h2><span class="pill">'+done+'/'+items.length+'</span></div><div class="card"><form id="addItem"><input name="name" placeholder="Что купить?" maxlength="120" required><div class="row"><input name="quantity" placeholder="Количество (например, 2 кг)" maxlength="40"><input name="price" type="number" min="0" step="0.01" placeholder="Цена ₽"></div><button class="btn">+ Добавить</button></form></div><div class="card">'+(items.length?[...items].sort((a,b)=>Number(a.purchased)-Number(b.purchased)).map(i=>'<div class="item row '+(i.purchased?'done':'')+'"><input class="check" type="checkbox" data-check="'+i.id+'" '+(i.purchased?'checked':'')+'><div class="grow"><div class="itemname">'+escape(i.name)+'</div><div class="muted small">'+escape(i.quantity||'')+(i.price?' · '+Number(i.price).toLocaleString('ru-RU')+' ₽':'')+(i.purchased?' · Купил(а): '+escape(nameOf(i.purchased_by)):'')+'</div></div><button class="link" data-del="'+i.id+'" aria-label="Удалить">✕</button></div>').join(''):'<div class="empty">Пока пусто. Добавьте первую покупку!</div>')+'</div>';
+renderHome(done, pct);
+$('shopping').innerHTML='<div class="row between"><h2 class="section-title">'+icon('shopping')+' Покупки</h2><span class="pill">'+done+'/'+items.length+'</span></div><div class="card"><form id="addItem"><input name="name" placeholder="Что купить?" maxlength="120" required><div class="row"><input name="quantity" placeholder="Количество (например, 2 кг)" maxlength="40"><input name="price" type="number" min="0" step="0.01" placeholder="Цена ₽"></div><button class="btn">+ Добавить</button></form></div><div class="card">'+(items.length?[...items].sort((a,b)=>Number(a.purchased)-Number(b.purchased)).map(i=>'<div class="item row '+(i.purchased?'done':'')+'"><input class="check" type="checkbox" data-check="'+i.id+'" '+(i.purchased?'checked':'')+'><div class="grow"><div class="itemname">'+escape(i.name)+'</div><div class="muted small">'+escape(i.quantity||'')+(i.price?' · '+Number(i.price).toLocaleString('ru-RU')+' ₽':'')+(i.purchased?' · Купил(а): '+escape(nameOf(i.purchased_by)):'')+'</div></div><button class="link" data-del="'+i.id+'" aria-label="Удалить">✕</button></div>').join(''):'<div class="empty">Пока пусто. Добавьте первую покупку!</div>')+'</div>';
 $('addItem').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const {error}=await sb.from('shopping_items').insert({space_id:space.id,name:String(f.get('name')).trim(),quantity:String(f.get('quantity')||''),price:f.get('price')?Number(f.get('price')):null,created_by:user.id});if(error)alert(error.message);else{e.target.reset();await refresh()}};
 document.querySelectorAll('[data-check]').forEach(el=>el.onchange=async()=>{const checked=el.checked;const {error}=await sb.from('shopping_items').update({purchased:checked,purchased_by:checked?user.id:null,purchased_at:checked?new Date().toISOString():null}).eq('id',el.dataset.check);if(error)alert(error.message);await refresh()});
 document.querySelectorAll('[data-del]').forEach(el=>el.onclick=async()=>{if(!confirm('Удалить покупку?'))return;const {error}=await sb.from('shopping_items').delete().eq('id',el.dataset.del);if(error)alert(error.message);await refresh()});
-$('meals').innerHTML='<h2>🍽️ Блюда</h2><div class="card"><form id="addMeal"><input name="name" placeholder="Название блюда" maxlength="120" required><button class="btn">+ Добавить блюдо</button></form></div>'+meals.map(m=>'<div class="card"><div class="row between"><div class="title">'+escape(m.name)+'</div><button class="link" data-mealdel="'+m.id+'">Удалить</button></div><p class="muted small">Добавляйте ингредиенты в покупки ниже</p><form data-ingredient="'+m.id+'"><input name="name" placeholder="Ингредиент" required maxlength="120"><input name="quantity" placeholder="Количество"><button class="btn alt">+ В покупки</button></form></div>').join('');
+$('meals').innerHTML='<h2 class="section-title">'+icon('meals')+' Блюда</h2><div class="card"><form id="addMeal"><input name="name" placeholder="Название блюда" maxlength="120" required><button class="btn">+ Добавить блюдо</button></form></div>'+meals.map(m=>'<div class="card"><div class="row between"><div class="title">'+escape(m.name)+'</div><button class="link" data-mealdel="'+m.id+'">Удалить</button></div><p class="muted small">Добавляйте ингредиенты в покупки ниже</p><form data-ingredient="'+m.id+'"><input name="name" placeholder="Ингредиент" required maxlength="120"><input name="quantity" placeholder="Количество"><button class="btn alt">+ В покупки</button></form></div>').join('');
 $('addMeal').onsubmit=async e=>{e.preventDefault();const {error}=await sb.from('meals').insert({space_id:space.id,name:String(new FormData(e.target).get('name')).trim(),created_by:user.id});if(error)alert(error.message);else await refresh()};
 document.querySelectorAll('[data-ingredient]').forEach(f=>f.onsubmit=async e=>{e.preventDefault();const d=new FormData(f);const {error}=await sb.from('shopping_items').insert({space_id:space.id,meal_id:f.dataset.ingredient,name:String(d.get('name')).trim(),quantity:String(d.get('quantity')||''),created_by:user.id});if(error)alert(error.message);else{f.reset();await refresh()}});
 document.querySelectorAll('[data-mealdel]').forEach(b=>b.onclick=async()=>{if(!confirm('Удалить блюдо? Ингредиенты останутся в покупках.'))return;const {error}=await sb.from('meals').delete().eq('id',b.dataset.mealdel);if(error)alert(error.message);await refresh()});
-$('budget').innerHTML='<h2>💳 Бюджет</h2><div class="card"><div class="muted">Потрачено на отмеченные покупки</div><h1>'+total.toLocaleString('ru-RU')+' ₽</h1><p class="muted small">Указывайте цену товара при добавлении покупки. В расчёт входят только купленные товары.</p></div>'}
+$('budget').innerHTML='<h2 class="section-title">'+icon('budget')+' Бюджет</h2><div class="card"><div class="muted">Потрачено на отмеченные покупки</div><h1>'+total.toLocaleString('ru-RU')+' ₽</h1><p class="muted small">Указывайте цену товара при добавлении покупки. В расчёт входят только купленные товары.</p></div>'}
 sb.auth.onAuthStateChange((event)=>{if(event==='SIGNED_OUT'){user=null;$('auth').classList.remove('hidden');$('app').classList.add('hidden');$('nav').classList.add('hidden')}});init();
-</script></body></html>
+</script>
+</body>
+</html>
