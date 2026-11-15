@@ -42,7 +42,6 @@ label{display:block;margin-top:12px;font-weight:600}
 .link{border:0;background:none;color:#7d8b9d}
 .title{font-weight:750;font-size:17px}
 .empty{padding:25px;text-align:center;color:#8893a5}
-#shopping>h2,#meals>h2,#budget>h2{margin:20px 0}
 .item .muted{margin-top:5px}
 #auth{margin-top:15vh}
 #auth .btn{background:#1979ef;color:white}
@@ -119,7 +118,9 @@ main:has(#app:not(.hidden)) { padding: env(safe-area-inset-top, 0px) clamp(11px,
 #addProductDialog::backdrop { background: #10182745; }
 #addProductDialog .dialog-actions { justify-content: flex-end; margin-top: 12px; }
 #addProductError { color: #b72542; margin: 6px 0 0; }
-.section-title { display: inline-flex; align-items: center; gap: 8px; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 34px; margin: 16px 0 20px; }
+.section-title { display: inline-flex; align-items: center; gap: 8px; margin: 0; line-height: 1.2; }
+.section-heading .pill { flex-shrink: 0; line-height: 18px; }
 @media (min-width: 500px) {
   .hero-reference { padding: 17px 18px 17px 20px; }
   #app > .app-header { padding-bottom: 30px; }
@@ -423,10 +424,17 @@ async function init() {
   if (space) await subscribeToList();
   else render();
 }
+function sectionHeading(iconName, title, badge = '') {
+  return `<div class="section-heading">
+    <h2 class="section-title">${icon(iconName)} ${escape(title)}</h2>
+    ${badge ? `<span class="pill">${escape(badge)}</span>` : ''}
+  </div>`;
+}
+
 function render(){if(!user)return;if(!space){$('headerPeople').innerHTML='';$('home').innerHTML='<div class="card"><h2>Ждём приглашения 💌</h2><p>Аккаунт создан, но ещё не добавлен в общее пространство. Попросите администратора добавить участника.</p><button class="btn alt" id="logout">Выйти</button></div>';$('logout').onclick=async()=>{await sb.auth.signOut();location.reload()};for(const id of ['shopping','meals','budget'])$(id).innerHTML='';return}
 const done=items.filter(x=>x.purchased).length,pct=items.length?Math.round(done/items.length*100):0,total=items.reduce((a,x)=>a+(x.purchased?Number(x.price||0):0),0);
 renderHome(done, pct);
-$('shopping').innerHTML='<div class="row between"><h2 class="section-title">'+icon('shopping')+' Покупки</h2><span class="pill">'+done+'/'+items.length+'</span></div><div class="card"><form id="addItem"><input name="name" placeholder="Что купить?" maxlength="120" required><div class="row"><input name="quantity" placeholder="Количество (например, 2 кг)" maxlength="40"><input name="price" type="number" min="0" step="0.01" placeholder="Цена ₽"></div><button class="btn">+ Добавить</button></form></div><div class="card">'+(items.length?[...items].sort((a,b)=>Number(a.purchased)-Number(b.purchased)).map(i=>'<div class="item row '+(i.purchased?'done':'')+'"><input class="check" type="checkbox" data-check="'+i.id+'" '+(i.purchased?'checked':'')+'><div class="grow"><div class="itemname">'+escape(i.name)+'</div><div class="muted small">'+escape(i.quantity||'')+(i.price?' · '+Number(i.price).toLocaleString('ru-RU')+' ₽':'')+(i.purchased?' · Купил(а): '+escape(nameOf(i.purchased_by)):'')+'</div></div><button class="link" data-del="'+i.id+'" aria-label="Удалить">✕</button></div>').join(''):'<div class="empty">Пока пусто. Добавьте первую покупку!</div>')+'</div>';
+$('shopping').innerHTML=sectionHeading('shopping', 'Покупки', done + '/' + items.length) + '<div class="card"><form id="addItem"><input name="name" placeholder="Что купить?" maxlength="120" required><div class="row"><input name="quantity" placeholder="Количество (например, 2 кг)" maxlength="40"><input name="price" type="number" min="0" step="0.01" placeholder="Цена ₽"></div><button class="btn">+ Добавить</button></form></div><div class="card">'+(items.length?[...items].sort((a,b)=>Number(a.purchased)-Number(b.purchased)).map(i=>'<div class="item row '+(i.purchased?'done':'')+'"><input class="check" type="checkbox" data-check="'+i.id+'" '+(i.purchased?'checked':'')+'><div class="grow"><div class="itemname">'+escape(i.name)+'</div><div class="muted small">'+escape(i.quantity||'')+(i.price?' · '+Number(i.price).toLocaleString('ru-RU')+' ₽':'')+(i.purchased?' · Купил(а): '+escape(nameOf(i.purchased_by)):'')+'</div></div><button class="link" data-del="'+i.id+'" aria-label="Удалить">✕</button></div>').join(''):'<div class="empty">Пока пусто. Добавьте первую покупку!</div>')+'</div>';
 $('addItem').onsubmit = async event => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -445,11 +453,11 @@ $('addItem').onsubmit = async event => {
 };
 document.querySelectorAll('[data-check]').forEach(el=>el.onchange=async()=>{const checked=el.checked;const {error}=await sb.from('shopping_items').update({purchased:checked,purchased_by:checked?user.id:null,purchased_at:checked?new Date().toISOString():null}).eq('id',el.dataset.check);if(error)alert(error.message);await refresh()});
 document.querySelectorAll('[data-del]').forEach(el=>el.onclick=async()=>{if(!confirm('Удалить покупку?'))return;const {error}=await sb.from('shopping_items').delete().eq('id',el.dataset.del);if(error)alert(error.message);await refresh()});
-$('meals').innerHTML='<h2 class="section-title">'+icon('meals')+' Блюда</h2><div class="card"><form id="addMeal"><input name="name" placeholder="Название блюда" maxlength="120" required><button class="btn">+ Добавить блюдо</button></form></div>'+meals.map(m=>'<div class="card"><div class="row between"><div class="title">'+escape(m.name)+'</div><button class="link" data-mealdel="'+m.id+'">Удалить</button></div><p class="muted small">Добавляйте ингредиенты в покупки ниже</p><form data-ingredient="'+m.id+'"><input name="name" placeholder="Ингредиент" required maxlength="120"><input name="quantity" placeholder="Количество"><button class="btn alt">+ В покупки</button></form></div>').join('');
+$('meals').innerHTML=sectionHeading('meals', 'Блюда') + '<div class="card"><form id="addMeal"><input name="name" placeholder="Название блюда" maxlength="120" required><button class="btn">+ Добавить блюдо</button></form></div>'+meals.map(m=>'<div class="card"><div class="row between"><div class="title">'+escape(m.name)+'</div><button class="link" data-mealdel="'+m.id+'">Удалить</button></div><p class="muted small">Добавляйте ингредиенты в покупки ниже</p><form data-ingredient="'+m.id+'"><input name="name" placeholder="Ингредиент" required maxlength="120"><input name="quantity" placeholder="Количество"><button class="btn alt">+ В покупки</button></form></div>').join('');
 $('addMeal').onsubmit=async e=>{e.preventDefault();const {error}=await sb.from('meals').insert({space_id:space.id,name:String(new FormData(e.target).get('name')).trim(),created_by:user.id});if(error)alert(error.message);else await refresh()};
 document.querySelectorAll('[data-ingredient]').forEach(f=>f.onsubmit=async e=>{e.preventDefault();const d=new FormData(f);const {error}=await sb.from('shopping_items').insert({space_id:space.id,meal_id:f.dataset.ingredient,name:String(d.get('name')).trim(),quantity:String(d.get('quantity')||''),created_by:user.id});if(error)alert(error.message);else{f.reset();await refresh()}});
 document.querySelectorAll('[data-mealdel]').forEach(b=>b.onclick=async()=>{if(!confirm('Удалить блюдо? Ингредиенты останутся в покупках.'))return;const {error}=await sb.from('meals').delete().eq('id',b.dataset.mealdel);if(error)alert(error.message);await refresh()});
-$('budget').innerHTML='<h2 class="section-title">'+icon('budget')+' Бюджет</h2><div class="card"><div class="muted">Потрачено на отмеченные покупки</div><h1>'+total.toLocaleString('ru-RU')+' ₽</h1><p class="muted small">Указывайте цену товара при добавлении покупки. В расчёт входят только купленные товары.</p></div>'}
+$('budget').innerHTML=sectionHeading('budget', 'Бюджет') + '<div class="card"><div class="muted">Потрачено на отмеченные покупки</div><h1>'+total.toLocaleString('ru-RU')+' ₽</h1><p class="muted small">Указывайте цену товара при добавлении покупки. В расчёт входят только купленные товары.</p></div>'}
 sb.auth.onAuthStateChange((event)=>{if(event==='SIGNED_OUT'){user=null;$('auth').classList.remove('hidden');$('app').classList.add('hidden');$('nav').classList.add('hidden')}});init();
 </script>
 </body>
