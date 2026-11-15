@@ -132,6 +132,43 @@ main:has(#app:not(.hidden)) { padding: env(safe-area-inset-top, 0px) clamp(11px,
 .app-header .people { max-width: 48%; overflow: auto; scrollbar-width: none; }
 .hero-people .people { max-width: 48%; flex-wrap: wrap; }
 
+.quantity-field { margin: 9px 0 12px; }
+.field-label { display: block; margin-bottom: 6px; font-weight: 600; }
+.quantity-stepper { display: inline-grid; grid-template-columns: 44px 56px 44px; overflow: hidden; border: 1px solid #e1e6ef; border-radius: 14px; background: #fff; }
+.quantity-stepper button { border: 0; background: #edf4ff; color: #0662d0; font-size: 23px; min-height: 43px; }
+.quantity-stepper input { appearance: textfield; min-height: 43px; margin: 0; border: 0; border-radius: 0; padding: 5px; text-align: center; }
+.quantity-stepper :focus-visible { outline: 2px solid #0672ea; outline-offset: -2px; }
+.quantity-stepper input::-webkit-inner-spin-button,
+.quantity-stepper input::-webkit-outer-spin-button { appearance: none; margin: 0; }
+.price-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-bottom: 5px; }
+.price-fields label { margin-top: 0; min-width: 0; }
+.price-fields input, .price-fields select { min-height: 44px; }
+.price-fields select { padding-inline: 8px; }
+.product-suggest { position: relative; }
+.product-suggestions { position: absolute; z-index: 3; top: calc(100% - 3px); left: 0; right: 0; display: grid; max-height: 200px; overflow: auto; border: 1px solid #e3e8f1; border-radius: 12px; background: #fff; box-shadow: 0 6px 20px #10294924; }
+.product-suggestions[hidden] { display: none; }
+.product-suggestions button { border: 0; background: none; padding: 10px 13px; color: #0a1020; text-align: left; font-size: 16px; min-height: 40px; overflow-wrap: anywhere; }
+.product-suggestions button:focus-visible, .product-suggestions button:hover { background: #edf4ff; }
+.purchase-entry { gap: 9px; }
+.purchase-entry .link { min-height: 36px; }
+.purchase-buyer { margin: 3px 0 0 32px; }
+.price-link { color: #0662d0; font-size: 14px; white-space: nowrap; }
+.price-link:disabled { color: #606879; }
+.purchase-details { margin: 7px 0 0 32px; }
+.purchase-details summary { color: #0662d0; cursor: pointer; font-size: 13px; padding: 5px 0; }
+.purchase-portion { display: grid; gap: 3px; padding: 7px 0; border-top: 1px solid #edf0f4; }
+.portion-actions { display: flex; align-items: center; gap: 6px; justify-content: space-between; padding-left: 31px; }
+.portion-actions .btn { padding: 7px 10px; border-radius: 9px; }
+.portion-actions .link { min-width: 32px; min-height: 32px; }
+.meal-ingredients { margin: 9px 0; }
+.ingredient-entry { min-height: 37px; gap: 9px; border-bottom: 1px solid #edf0f4; }
+.preview-item .check:indeterminate { border-color: #22c431; background: linear-gradient(#fff, #fff) center / 10px 2px no-repeat #22c431; }
+.preview-item .purchase-status { display: block; margin-top: 2px; color: #606879; }
+#setPriceDialog { width: min(360px, calc(100% - 32px)); padding: 20px; border: 1px solid #e9edf4; border-radius: 18px; color: #0a1020; }
+#setPriceDialog::backdrop { background: #10182745; }
+#setPriceDialog .dialog-actions { justify-content: flex-end; margin-top: 12px; }
+#setPriceError { color: #b72542; margin: 6px 0 0; }
+
 </style>
 </head>
 <body>
@@ -155,15 +192,25 @@ main:has(#app:not(.hidden)) { padding: env(safe-area-inset-top, 0px) clamp(11px,
   <form id="addProductForm">
     <h2 id="addProductTitle">Новый товар</h2>
     <label for="productName">Название</label>
-    <input id="productName" name="name" placeholder="Что купить?" required maxlength="120" autofocus>
-    <label for="productQuantity">Количество</label>
-    <input id="productQuantity" name="quantity" placeholder="Например, 2 кг" maxlength="40">
-    <label for="productPrice">Цена, ₽</label>
-    <input id="productPrice" name="price" type="number" min="0" step="0.01" inputmode="decimal">
+    <div id="productNameField"></div>
+    <div id="productQuantityField"></div>
+    <div id="productPriceField"></div>
     <p id="addProductError" role="alert"></p>
     <div class="row dialog-actions">
       <button class="btn alt" id="cancelProduct" type="button">Отмена</button>
       <button class="btn" id="submitProduct">Добавить</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="setPriceDialog" aria-labelledby="setPriceTitle">
+  <form id="setPriceForm">
+    <h2 id="setPriceTitle">Стоимость покупки</h2>
+    <p id="setPriceContext" class="muted"></p>
+    <div id="editPriceFields"></div>
+    <p id="setPriceError" role="alert"></p>
+    <div class="row dialog-actions">
+      <button class="btn alt" id="cancelPrice" type="button">Отмена</button>
+      <button class="btn" id="submitPrice">Сохранить</button>
     </div>
   </form>
 </dialog>
@@ -280,26 +327,28 @@ document.addEventListener('keydown', event => {
   }
 });
 
-function renderHome(done, pct) {
+function renderHome(groups, done, pct) {
   const avatars = members.map(person).join('');
   $('headerPeople').innerHTML = avatars;
   const scrollTop = $('previewItems')?.scrollTop || 0;
-  let preview = items.filter(item => purchaseFilter === 'all' || item.purchased === (purchaseFilter === 'purchased'));
+  let preview = groups.filter(item => purchaseFilter === 'all' || item.purchased === (purchaseFilter === 'purchased'));
   if (purchaseOrder !== 'added') {
     preview.sort((a, b) => (Number(b.purchased) - Number(a.purchased)) * (purchaseOrder === 'purchased' ? 1 : -1));
   }
   const filterControls = [
-    ['all', 'Все', items.length],
-    ['needed', 'Купить', items.length - done],
+    ['all', 'Все', groups.length],
+    ['needed', 'Купить', groups.length - done],
     ['purchased', 'Куплено', done]
   ].map(([key, label, count]) =>
     `<button type="button" class="filter-chip" data-purchase-filter="${key}" aria-pressed="${purchaseFilter === key}">${label} ${count}</button>`
   ).join('');
   const previewRows = preview.map(item => {
-    const buyer = item.purchased && members.find(member => member.user_id === item.purchased_by);
+    const buyers = new Set(item.rows.map(row => row.purchased_by));
+    const buyer = item.purchased && buyers.size === 1 && members.find(member => buyers.has(member.user_id));
     return `<div class="preview-item${item.purchased ? ' done' : ''}">
-      <input class="check" type="checkbox" data-check="${escape(item.id)}" aria-label="${escape(item.name)}" ${item.purchased ? 'checked' : ''}>
-      <div class="grow"><span class="itemname">${escape(item.name)}${item.quantity ? ' — ' + escape(item.quantity) : ''}</span>${buyer ? person(buyer) : ''}</div>
+      ${checkedBox(item)}
+      <div class="grow"><div><span class="itemname">${escape(item.name)} — ${escape(item.quantity)}</span>
+      ${item.partial ? `<span class="purchase-status small">${escape(purchaseStatus(item))}</span>` : ''}</div>${buyer ? person(buyer) : ''}</div>
     </div>`;
   }).join('');
   $('home').innerHTML = `
@@ -316,7 +365,7 @@ function renderHome(done, pct) {
       </div>
     </div>
     <div class="progress-card">
-      <h2>Куплено ${done} из ${items.length}</h2>
+      <h2>Куплено ${done} из ${groups.length}</h2>
       <div class="row">
         <div class="bar" role="progressbar" aria-label="Купленные товары" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div>
         <span>${pct} %</span>
@@ -335,7 +384,7 @@ function renderHome(done, pct) {
           <button type="button" data-purchase-order="added" aria-current="${purchaseOrder === 'added'}">По порядку добавления</button>
         </div>
       </div>
-      <div class="preview-items" id="previewItems">${previewRows || '<div class="empty">' + (items.length ? 'В этой категории пока пусто' : 'Пока пусто. Добавьте первую покупку!') + '</div>'}</div>
+      <div class="preview-items" id="previewItems">${previewRows || '<div class="empty">' + (groups.length ? 'В этой категории пока пусто' : 'Пока пусто. Добавьте первую покупку!') + '</div>'}</div>
     </section>`;
   $('previewItems').scrollTop = scrollTop;
   document.querySelectorAll('[data-popover]').forEach(button => {
@@ -372,19 +421,413 @@ function renderHome(done, pct) {
   });
 }
 
-async function insertPurchase(form) {
+const quantityLimit = 9999;
+const priceLimit = 9999999999.99;
+const numberFormat = new Intl.NumberFormat('ru-RU', {maximumFractionDigits: 8});
+const money = value => Number(value).toLocaleString('ru-RU', {maximumFractionDigits: 2}) + ' ₽';
+const productKey = name => name.trim().replace(/\s+/g, ' ').toLocaleLowerCase('ru-RU').replace(/ё/g, 'е');
+
+function readQuantity(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return {amount: 1, unit: ''};
+  const match = /^(\d+(?:[,.]\d+)?)(?:\s*(\p{L}[\p{L}.\s]*))?$/u.exec(text);
+  if (!match) return {text};
+  const amount = Number(match[1].replace(',', '.'));
+  if (!Number.isFinite(amount) || amount <= 0) return {text};
+  const suffix = (match[2] || '').trim().toLocaleLowerCase('ru-RU').replace(/\.$/, '');
+  return {amount, unit: suffix === 'шт' ? '' : suffix};
+}
+
+function quantityLabel(rows) {
+  const amounts = new Map();
+  const descriptions = [];
+  for (const row of rows) {
+    const quantity = readQuantity(row.quantity);
+    if (quantity.text) descriptions.push(quantity.text);
+    else amounts.set(quantity.unit, (amounts.get(quantity.unit) || 0) + quantity.amount);
+  }
+  return [...amounts].map(([unit, amount]) => numberFormat.format(amount) + (unit ? ' ' + unit : ''))
+    .concat(descriptions).join(' + ');
+}
+
+function groupProducts(rows) {
+  const groups = new Map();
+  for (const item of rows) {
+    const key = productKey(item.name);
+    if (!groups.has(key)) groups.set(key, {id: item.id, name: item.name, rows: []});
+    groups.get(key).rows.push(item);
+  }
+  return [...groups.values()].map(group => ({
+    ...group,
+    purchased: group.rows.every(row => row.purchased),
+    partial: group.rows.some(row => row.purchased) && group.rows.some(row => !row.purchased),
+    quantity: quantityLabel(group.rows)
+  }));
+}
+
+function checkedBox(group) {
+  const ids = group.rows.map(item => item.id).join(',');
+  return `<input class="check" type="checkbox" data-check="${escape(ids)}" aria-label="${escape(group.name)}" ${group.purchased ? 'checked' : ''} ${group.partial ? 'data-partial' : ''}>`;
+}
+
+function purchaseStatus(group) {
+  const bought = group.rows.filter(item => item.purchased);
+  return group.partial ? 'Куплено: ' + quantityLabel(bought) + ' из ' + group.quantity : '';
+}
+
+function quantityStepper() {
+  return `<div class="quantity-field">
+    <span class="field-label">Количество</span>
+    <div class="quantity-stepper">
+      <button type="button" data-step="-1" aria-label="Уменьшить количество">−</button>
+      <input type="number" name="quantity" min="1" max="${quantityLimit}" step="1" value="1" inputmode="numeric" aria-label="Количество" required>
+      <button type="button" data-step="1" aria-label="Увеличить количество">+</button>
+    </div>
+  </div>`;
+}
+
+function productInput(placeholder, id = '') {
+  return `<div class="product-suggest">
+    <input ${id ? `id="${id}" autofocus` : ''} name="name" placeholder="${placeholder}" aria-label="${placeholder}" maxlength="120" autocomplete="off" required>
+    <div class="product-suggestions" hidden></div>
+  </div>`;
+}
+
+function priceFields() {
+  return `<div class="price-fields">
+    <label>Цена, ₽<input name="price" type="number" min="0" max="${priceLimit}" step="0.01" inputmode="decimal" placeholder="0,00"></label>
+    <label>Расчёт<select name="priceMode"><option value="total">За всё</option><option value="unit">За единицу</option></select></label>
+  </div>`;
+}
+
+function updateSuggestions(field) {
+  const options = field.closest('.product-suggest').querySelector('.product-suggestions');
+  const query = productKey(field.value);
+  const matches = new Map();
+  if (query) {
+    for (const item of items) {
+      const key = productKey(item.name);
+      if (key !== query && key.startsWith(query) && !matches.has(key)) matches.set(key, item.name);
+      if (matches.size === 6) break;
+    }
+  }
+  options.innerHTML = Array.from(matches.values(), name => `<button type="button" data-suggestion>${escape(name)}</button>`).join('');
+  options.hidden = !matches.size;
+}
+
+document.addEventListener('input', event => {
+  if (event.target.matches('.product-suggest input')) updateSuggestions(event.target);
+});
+document.addEventListener('focusin', event => {
+  if (event.target.matches('.product-suggest input')) updateSuggestions(event.target);
+});
+document.addEventListener('focusout', event => {
+  const box = event.target.closest('.product-suggest');
+  if (box && !box.contains(event.relatedTarget)) box.querySelector('.product-suggestions').hidden = true;
+});
+document.addEventListener('keydown', event => {
+  const box = event.target.closest('.product-suggest');
+  if (!box) return;
+  const suggestions = box.querySelector('.product-suggestions');
+  if (suggestions.hidden) return;
+  if (event.key === 'ArrowDown' && event.target.matches('input')) {
+    event.preventDefault();
+    suggestions.querySelector('button')?.focus();
+  }
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    box.querySelector('input').focus();
+    suggestions.hidden = true;
+  }
+});
+document.addEventListener('pointerdown', event => {
+  if (event.target.closest('[data-suggestion]')) event.preventDefault();
+});
+document.addEventListener('click', event => {
+  const step = event.target.closest('[data-step]');
+  if (step) {
+    const field = step.parentElement.querySelector('input');
+    const current = Math.trunc(field.valueAsNumber) || 1;
+    field.value = String(Math.max(1, Math.min(quantityLimit, current + Number(step.dataset.step))));
+  }
+  const suggestion = event.target.closest('[data-suggestion]');
+  if (suggestion) {
+    const box = suggestion.closest('.product-suggest');
+    const field = box.querySelector('input');
+    field.value = suggestion.textContent;
+    field.focus();
+    box.querySelector('.product-suggestions').hidden = true;
+  }
+});
+
+function priceFrom(fields, quantity) {
+  const input = String(fields.get('price') ?? '').trim();
+  if (!input) return {price: null};
+  const amount = Number(input);
+  if (amount < 0 || !Number.isFinite(amount)) return {message: 'Укажите корректную цену.'};
+  const multiplier = fields.get('priceMode') === 'unit' ? quantity : 1;
+  const total = Math.round(Math.round(amount * 100) * multiplier) / 100;
+  if (total > priceLimit) return {message: 'Сумма слишком большая.'};
+  return {price: total};
+}
+
+async function insertPurchase(form, mealId = null) {
   const fields = new FormData(form);
-  const name = String(fields.get('name') || '').trim();
+  const name = String(fields.get('name') || '').trim().replace(/\s+/g, ' ');
   if (!name) return {error: {message: 'Введите название товара.'}};
-  const price = fields.get('price');
+  const quantity = Number(fields.get('quantity'));
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > quantityLimit) {
+    return {error: {message: 'Укажите целое количество от 1 до ' + quantityLimit + '.'}};
+  }
+  const {price, message} = priceFrom(fields, quantity);
+  if (message) return {error: {message}};
   return sb.from('shopping_items').insert({
     space_id: space.id,
+    meal_id: mealId,
     name,
-    quantity: String(fields.get('quantity') || '').trim(),
-    price: price ? Number(price) : null,
+    quantity: String(quantity),
+    price,
     created_by: user.id
   }).select('id').single();
 }
+
+function shoppingPortion(item) {
+  const mealName = meals.find(meal => meal.id === item.meal_id)?.name || 'Отдельная покупка';
+  const canEditPrice = !item.purchased_by || item.purchased_by === user.id;
+  return `<div class="purchase-portion">
+    <div class="row purchase-entry">
+      ${checkedBox({...item, rows: [item]})}
+      <div class="grow">
+        <div>${escape(mealName)} · ${escape(quantityLabel([item]))}</div>
+        ${item.purchased ? `<div class="muted small">Купил(а): ${escape(nameOf(item.purchased_by))}</div>` : ''}
+      </div>
+    </div>
+    <div class="portion-actions">
+      <button type="button" class="btn alt" data-price-item="${escape(item.id)}" ${canEditPrice ? '' : 'disabled title="Цену может изменить тот, кто отметил покупку"'}>${item.price == null ? 'Указать цену' : money(item.price)}</button>
+      <button type="button" class="link" data-del="${escape(item.id)}" aria-label="Удалить ${escape(item.name)}">✕</button>
+    </div>
+  </div>`;
+}
+
+function renderShopping(groups, done) {
+  const expanded = new Set(Array.from($('shopping').querySelectorAll('details[open]'), el => el.dataset.purchaseGroup));
+  const rows = [...groups].sort((a, b) => Number(a.purchased) - Number(b.purchased)).map(group => {
+    const prices = group.rows.filter(row => row.price != null);
+    const total = prices.reduce((sum, row) => sum + Math.round(Number(row.price) * 100), 0) / 100;
+    const status = purchaseStatus(group);
+    const item = group.rows[0];
+    const single = group.rows.length === 1;
+    const mealName = single && meals.find(meal => meal.id === item.meal_id)?.name;
+    const canEditPrice = !item.purchased_by || item.purchased_by === user.id;
+    return `<div class="item purchase-group">
+      <div class="row purchase-entry ${group.purchased ? 'done' : ''}">
+        ${checkedBox(group)}
+        <div class="grow">
+          <div class="itemname">${escape(group.name)}</div>
+          <div class="muted small">${escape(group.quantity)}${mealName ? ' · ' + escape(mealName) : ''}</div>
+          ${status ? `<div class="muted small">${escape(status)}</div>` : ''}
+        </div>
+        ${single ? `<button type="button" class="link price-link" data-price-item="${escape(item.id)}" ${canEditPrice ? '' : 'disabled title="Цену может изменить тот, кто отметил покупку"'}>${item.price == null ? 'Цена' : money(item.price)}</button>
+          <button type="button" class="link" data-del="${escape(item.id)}" aria-label="Удалить ${escape(group.name)}">✕</button>` : ''}
+      </div>
+      ${single && item.purchased ? `<div class="muted small purchase-buyer">Купил(а): ${escape(nameOf(item.purchased_by))}</div>` : ''}
+      ${single ? '' : `<details class="purchase-details" data-purchase-group="${escape(group.id)}" ${expanded.has(group.id) ? 'open' : ''}>
+        <summary>${prices.length ? (prices.length === group.rows.length ? 'Всего ' : 'Указано ') + money(total) + ' · ' : ''}Состав покупки и цена</summary>
+        ${group.rows.map(shoppingPortion).join('')}
+      </details>`}
+    </div>`;
+  }).join('');
+  $('shopping').innerHTML = sectionHeading('shopping', 'Покупки', done + '/' + groups.length) + `
+    <div class="card">
+      <form id="addItem" data-draft>
+        ${productInput('Что купить?')}
+        ${quantityStepper()}
+        ${priceFields()}
+        <button class="btn">+ Добавить</button>
+      </form>
+    </div>
+    <div class="card">${rows || '<div class="empty">Пока пусто. Добавьте первую покупку!</div>'}</div>`;
+}
+
+function renderMeals() {
+  const byMeal = new Map();
+  for (const item of items) {
+    if (!item.meal_id) continue;
+    if (!byMeal.has(item.meal_id)) byMeal.set(item.meal_id, []);
+    byMeal.get(item.meal_id).push(item);
+  }
+  $('meals').innerHTML = sectionHeading('meals', 'Блюда') + `
+    <div class="card"><form id="addMeal" data-draft><input name="name" placeholder="Название блюда" maxlength="120" required><button class="btn">+ Добавить блюдо</button></form></div>
+  ` + meals.map(meal => {
+    const ingredients = groupProducts(byMeal.get(meal.id) || []);
+    return `<div class="card">
+      <div class="row between"><div class="title">${escape(meal.name)}</div><button type="button" class="link" data-mealdel="${escape(meal.id)}">Удалить</button></div>
+      ${ingredients.length ? `<div class="meal-ingredients">${ingredients.map(group => `<div class="row ingredient-entry ${group.purchased ? 'done' : ''}">
+        ${checkedBox(group)}
+        <div class="grow"><div class="itemname">${escape(group.name)} — ${escape(group.quantity)}</div>
+        ${group.partial ? `<div class="muted small">${escape(purchaseStatus(group))}</div>` : ''}</div>
+      </div>`).join('')}</div>` : ''}
+      <form data-ingredient="${escape(meal.id)}" data-draft>
+        ${productInput('Ингредиент')}
+        ${quantityStepper()}
+        <button class="btn alt">+ В покупки</button>
+      </form>
+    </div>`;
+  }).join('');
+}
+
+function openPrice(item) {
+  const form = $('setPriceForm');
+  form.reset();
+  const quantity = readQuantity(item.quantity);
+  form.dataset.itemId = item.id;
+  $('setPriceContext').textContent = item.name + ' — ' + quantityLabel([item]);
+  form.elements.price.value = item.price ?? '';
+  form.elements.priceMode.options[1].disabled = !quantity.amount;
+  $('setPriceError').textContent = '';
+  $('setPriceDialog').showModal();
+}
+
+$('cancelPrice').onclick = () => $('setPriceDialog').close();
+$('setPriceDialog').addEventListener('cancel', event => {
+  if ($('submitPrice').disabled) event.preventDefault();
+});
+$('setPriceForm').onsubmit = async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const item = items.find(row => row.id === form.dataset.itemId);
+  if (!item) {
+    $('setPriceError').textContent = 'Эта покупка уже удалена.';
+    return;
+  }
+  const {price, message} = priceFrom(new FormData(form), readQuantity(item.quantity).amount || 1);
+  if (message) {
+    $('setPriceError').textContent = message;
+    return;
+  }
+  $('submitPrice').disabled = true;
+  $('cancelPrice').disabled = true;
+  try {
+    const {error} = await sb.from('shopping_items').update({price}).eq('space_id', space.id).eq('id', item.id);
+    if (error) {
+      $('setPriceError').textContent = error.message;
+      return;
+    }
+    $('setPriceDialog').close();
+    await refresh();
+  } finally {
+    $('submitPrice').disabled = false;
+    $('cancelPrice').disabled = false;
+  }
+};
+
+async function updatePurchased(checkbox) {
+  const checked = checkbox.checked;
+  const ids = checkbox.dataset.check.split(',');
+  checkbox.disabled = true;
+  const {error} = await sb.from('shopping_items')
+    .update({purchased: checked, purchased_by: checked ? user.id : null, purchased_at: checked ? new Date().toISOString() : null})
+    .eq('space_id', space.id).eq('purchased', !checked).in('id', ids);
+  if (error) {
+    alert(error.message);
+    render();
+  }
+  await refresh();
+  checkbox.disabled = false;
+}
+
+const pendingForms = new Set();
+function bindPurchaseForms() {
+  for (const form of document.querySelectorAll('#addItem, [data-ingredient], #addMeal')) {
+    const key = form.dataset.ingredient || form.id;
+    const submitSelector = 'button[type="submit"], button:not([type])';
+    const liveForm = () => form.dataset.ingredient
+      ? $('meals').querySelector('[data-ingredient="' + CSS.escape(key) + '"]')
+      : $(key);
+    const submit = form.querySelector(submitSelector);
+    submit.disabled = pendingForms.has(key);
+    form.onsubmit = async event => {
+      event.preventDefault();
+      if (pendingForms.has(key)) return;
+      pendingForms.add(key);
+      submit.disabled = true;
+      try {
+        const name = String(new FormData(form).get('name') || '').trim();
+        if (!name) {
+          alert(form.id === 'addMeal' ? 'Введите название блюда.' : 'Введите название товара.');
+          return;
+        }
+        const result = form.id === 'addMeal'
+          ? await sb.from('meals').insert({space_id: space.id, name, created_by: user.id})
+          : await insertPurchase(form, form.dataset.ingredient || null);
+        if (result.error) alert(result.error.message);
+        else {
+          const current = liveForm();
+          if (current && current.elements.namedItem('name').value.trim() === name) current.reset();
+          await refresh();
+        }
+      } finally {
+        pendingForms.delete(key);
+        const currentSubmit = liveForm()?.querySelector(submitSelector);
+        if (currentSubmit) currentSubmit.disabled = false;
+      }
+    };
+  }
+  document.querySelectorAll('[data-check]').forEach(box => {
+    box.indeterminate = box.hasAttribute('data-partial');
+    box.onchange = () => updatePurchased(box);
+  });
+  document.querySelectorAll('[data-price-item]').forEach(button => {
+    button.onclick = () => {
+      const item = items.find(row => row.id === button.dataset.priceItem);
+      if (item) openPrice(item);
+    };
+  });
+  document.querySelectorAll('[data-del], [data-mealdel]').forEach(button => {
+    button.onclick = async () => {
+      const isMeal = Boolean(button.dataset.mealdel);
+      if (!confirm(isMeal ? 'Удалить блюдо? Ингредиенты останутся в покупках.' : 'Удалить покупку?')) return;
+      const {error} = await sb.from(isMeal ? 'meals' : 'shopping_items').delete()
+        .eq('space_id', space.id).eq('id', button.dataset.mealdel || button.dataset.del);
+      if (error) alert(error.message);
+      await refresh();
+    };
+  });
+}
+
+function snapshotDrafts() {
+  return Array.from(document.querySelectorAll('[data-draft]'), form => ({
+    id: form.id,
+    mealId: form.dataset.ingredient,
+    fields: Array.from(form.elements).filter(field => field.name).map(field => ({
+      name: field.name, value: field.value, focused: document.activeElement === field,
+      selectionStart: field.selectionStart, selectionEnd: field.selectionEnd
+    }))
+  }));
+}
+
+function restoreDrafts(drafts) {
+  for (const draft of drafts) {
+    const form = draft.mealId
+      ? $('meals').querySelector('[data-ingredient="' + CSS.escape(draft.mealId) + '"]')
+      : $(draft.id);
+    if (!form) continue;
+    for (const entry of draft.fields) {
+      const field = form.elements.namedItem(entry.name);
+      field.value = entry.value;
+      if (!entry.focused || form.closest('section').id !== tab) continue;
+      field.focus({preventScroll: true});
+      if (entry.selectionStart !== null && entry.selectionStart !== undefined) {
+        field.setSelectionRange(entry.selectionStart, entry.selectionEnd);
+      }
+    }
+  }
+}
+
+$('productNameField').innerHTML = productInput('Что купить?', 'productName');
+$('productQuantityField').innerHTML = quantityStepper();
+$('productPriceField').innerHTML = priceFields();
+$('editPriceFields').innerHTML = priceFields();
 
 $('cancelProduct').onclick = () => $('addProductDialog').close();
 $('addProductDialog').addEventListener('cancel', event => {
@@ -404,8 +847,9 @@ $('addProductForm').onsubmit = async event => {
     $('addProductDialog').close();
     if (purchaseFilter === 'purchased') purchaseFilter = 'all';
     await refresh();
-    $('home').querySelector('[data-check="' + CSS.escape(data.id) + '"]')
-      ?.closest('.preview-item').scrollIntoView({block: 'nearest'});
+    const row = Array.from($('home').querySelectorAll('[data-check]'))
+      .find(box => box.dataset.check.split(',').includes(data.id));
+    row?.closest('.preview-item').scrollIntoView({block: 'nearest'});
     $('newProduct')?.focus({preventScroll: true});
   } finally {
     $('submitProduct').disabled = false;
@@ -432,32 +876,23 @@ function sectionHeading(iconName, title, badge = '') {
 }
 
 function render(){if(!user)return;if(!space){$('headerPeople').innerHTML='';$('home').innerHTML='<div class="card"><h2>Ждём приглашения 💌</h2><p>Аккаунт создан, но ещё не добавлен в общее пространство. Попросите администратора добавить участника.</p><button class="btn alt" id="logout">Выйти</button></div>';$('logout').onclick=async()=>{await sb.auth.signOut();location.reload()};for(const id of ['shopping','meals','budget'])$(id).innerHTML='';return}
-const done=items.filter(x=>x.purchased).length,pct=items.length?Math.round(done/items.length*100):0,total=items.reduce((a,x)=>a+(x.purchased?Number(x.price||0):0),0);
-renderHome(done, pct);
-$('shopping').innerHTML=sectionHeading('shopping', 'Покупки', done + '/' + items.length) + '<div class="card"><form id="addItem"><input name="name" placeholder="Что купить?" maxlength="120" required><div class="row"><input name="quantity" placeholder="Количество (например, 2 кг)" maxlength="40"><input name="price" type="number" min="0" step="0.01" placeholder="Цена ₽"></div><button class="btn">+ Добавить</button></form></div><div class="card">'+(items.length?[...items].sort((a,b)=>Number(a.purchased)-Number(b.purchased)).map(i=>'<div class="item row '+(i.purchased?'done':'')+'"><input class="check" type="checkbox" data-check="'+i.id+'" '+(i.purchased?'checked':'')+'><div class="grow"><div class="itemname">'+escape(i.name)+'</div><div class="muted small">'+escape(i.quantity||'')+(i.price?' · '+Number(i.price).toLocaleString('ru-RU')+' ₽':'')+(i.purchased?' · Купил(а): '+escape(nameOf(i.purchased_by)):'')+'</div></div><button class="link" data-del="'+i.id+'" aria-label="Удалить">✕</button></div>').join(''):'<div class="empty">Пока пусто. Добавьте первую покупку!</div>')+'</div>';
-$('addItem').onsubmit = async event => {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const submit = form.querySelector('button');
-  submit.disabled = true;
-  try {
-    const {error} = await insertPurchase(form);
-    if (error) alert(error.message);
-    else {
-      form.reset();
-      await refresh();
-    }
-  } finally {
-    submit.disabled = false;
-  }
-};
-document.querySelectorAll('[data-check]').forEach(el=>el.onchange=async()=>{const checked=el.checked;const {error}=await sb.from('shopping_items').update({purchased:checked,purchased_by:checked?user.id:null,purchased_at:checked?new Date().toISOString():null}).eq('id',el.dataset.check);if(error)alert(error.message);await refresh()});
-document.querySelectorAll('[data-del]').forEach(el=>el.onclick=async()=>{if(!confirm('Удалить покупку?'))return;const {error}=await sb.from('shopping_items').delete().eq('id',el.dataset.del);if(error)alert(error.message);await refresh()});
-$('meals').innerHTML=sectionHeading('meals', 'Блюда') + '<div class="card"><form id="addMeal"><input name="name" placeholder="Название блюда" maxlength="120" required><button class="btn">+ Добавить блюдо</button></form></div>'+meals.map(m=>'<div class="card"><div class="row between"><div class="title">'+escape(m.name)+'</div><button class="link" data-mealdel="'+m.id+'">Удалить</button></div><p class="muted small">Добавляйте ингредиенты в покупки ниже</p><form data-ingredient="'+m.id+'"><input name="name" placeholder="Ингредиент" required maxlength="120"><input name="quantity" placeholder="Количество"><button class="btn alt">+ В покупки</button></form></div>').join('');
-$('addMeal').onsubmit=async e=>{e.preventDefault();const {error}=await sb.from('meals').insert({space_id:space.id,name:String(new FormData(e.target).get('name')).trim(),created_by:user.id});if(error)alert(error.message);else await refresh()};
-document.querySelectorAll('[data-ingredient]').forEach(f=>f.onsubmit=async e=>{e.preventDefault();const d=new FormData(f);const {error}=await sb.from('shopping_items').insert({space_id:space.id,meal_id:f.dataset.ingredient,name:String(d.get('name')).trim(),quantity:String(d.get('quantity')||''),created_by:user.id});if(error)alert(error.message);else{f.reset();await refresh()}});
-document.querySelectorAll('[data-mealdel]').forEach(b=>b.onclick=async()=>{if(!confirm('Удалить блюдо? Ингредиенты останутся в покупках.'))return;const {error}=await sb.from('meals').delete().eq('id',b.dataset.mealdel);if(error)alert(error.message);await refresh()});
-$('budget').innerHTML=sectionHeading('budget', 'Бюджет') + '<div class="card"><div class="muted">Потрачено на отмеченные покупки</div><h1>'+total.toLocaleString('ru-RU')+' ₽</h1><p class="muted small">Указывайте цену товара при добавлении покупки. В расчёт входят только купленные товары.</p></div>'}
+  const drafts = snapshotDrafts();
+  const groups = groupProducts(items);
+  const done = groups.filter(group => group.purchased).length;
+  const pct = groups.length ? Math.round(done / groups.length * 100) : 0;
+  const total = items.reduce((sum, item) => sum + (item.purchased ? Math.round(Number(item.price || 0) * 100) : 0), 0) / 100;
+  renderHome(groups, done, pct);
+  renderShopping(groups, done);
+  renderMeals();
+  $('budget').innerHTML = sectionHeading('budget', 'Бюджет') + `
+    <div class="card">
+      <div class="muted">Потрачено на отмеченные покупки</div>
+      <h1>${money(total)}</h1>
+      <p class="muted small">В расчёт входят цены отмеченных покупок.</p>
+    </div>`;
+  restoreDrafts(drafts);
+  bindPurchaseForms();
+}
 sb.auth.onAuthStateChange((event)=>{if(event==='SIGNED_OUT'){user=null;$('auth').classList.remove('hidden');$('app').classList.add('hidden');$('nav').classList.add('hidden')}});init();
 </script>
 </body>
