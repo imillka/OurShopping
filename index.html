@@ -379,6 +379,23 @@ body { background: #f4f6fd; }
 .shop-segment input:focus-visible + span { outline: 2px solid #0954a8; }
 .shop-bottom .btn { background: #d4e5ff; padding: 10px 12px; white-space: nowrap; }
 #shopping .shop-list { padding: 5px 8px; }
+.shopping-category-filters { display: flex; gap: 6px; overflow-x: auto; padding: 3px 2px 7px; margin-top: 14px; }
+.shopping-category-filters .filter-chip[aria-pressed="true"] { color: #fff; background: #0876f9; }
+.shopping-category-filters + .shop-list { margin-top: 4px; }
+.shopping-settings-link { display: block; width: fit-content; margin: 12px auto 0; padding: 7px 4px; color: #075ac7; font-weight: 650; }
+#productSettingsDialog { width: min(530px, calc(100% - 28px)); max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); padding: 16px; border: 1px solid #e3eafb; border-radius: 19px; color: #0a1020; }
+#productSettingsDialog::backdrop { background: #14224055; }
+.product-settings-header { align-items: start; }
+.product-settings-header h2 { margin: 6px 0 12px; }
+.product-settings-header .btn { flex: none; padding: 9px 11px; }
+.product-category-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; padding-bottom: 8px; }
+.product-category-form label, .product-category-form input { margin: 0; }
+.product-category-form input { margin-top: 6px; }
+.product-category-form .btn { min-height: 47px; padding-inline: 12px; }
+#productSettingsStatus { margin: 4px 0 8px; }
+#productSettingsStatus:empty { display: none; }
+.product-category-row { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); align-items: center; gap: 8px; padding: 7px 0; margin: 0; border-top: 1px solid #edf0f4; overflow-wrap: anywhere; }
+.product-category-row select { min-height: 40px; padding: 7px 5px; margin: 0; font-weight: 400; }
 #shopping .purchase-entry { gap: 6px; align-items: center; }
 #shopping .purchase-group { padding: 10px 0; }
 #shopping .purchase-entry .itemname { font-weight: 740; font-size: clamp(13px,3.7vw,17px); }
@@ -564,6 +581,18 @@ input, textarea, [contenteditable="true"] {
     </div>
   </form>
 </dialog>
+<dialog id="productSettingsDialog" aria-labelledby="productSettingsTitle">
+  <div class="row between product-settings-header">
+    <h2 id="productSettingsTitle">Настроить продукты</h2>
+    <form method="dialog"><button class="btn alt">Закрыть</button></form>
+  </div>
+  <form id="addShoppingCategory" class="product-category-form">
+    <label>Новая категория<input name="categoryName" maxlength="45" placeholder="Например, Молочные" required></label>
+    <button type="submit" class="btn">Создать</button>
+  </form>
+  <p id="productSettingsStatus" class="small" role="status"></p>
+  <div id="productSettingsList"></div>
+</dialog>
 <dialog id="shoppingIconsDialog" aria-labelledby="shoppingIconTitle">
   <h2 id="shoppingIconTitle">Иконка товара</h2>
   <div id="shoppingIconChoices"></div>
@@ -649,6 +678,8 @@ async function subscribeToList() {
     .on('postgres_changes', {event: '*', schema: 'public', table: 'shopping_items', filter: 'space_id=eq.' + currentId}, onChange)
     .on('postgres_changes', {event: '*', schema: 'public', table: 'meals', filter: 'space_id=eq.' + currentId}, onChange)
     .on('postgres_changes', {event: '*', schema: 'public', table: 'shopping_product_icons', filter: 'space_id=eq.' + currentId}, onChange)
+    .on('postgres_changes', {event: '*', schema: 'public', table: 'shopping_categories', filter: 'space_id=eq.' + currentId}, onChange)
+    .on('postgres_changes', {event: '*', schema: 'public', table: 'shopping_product_categories', filter: 'space_id=eq.' + currentId}, onChange)
     .subscribe();
   await refresh();
 }
@@ -664,7 +695,8 @@ async function refresh() {
       sb.from('shopping_items').select('*').eq('space_id', workspace.id).order('created_at'),
       sb.from('meals').select('*').eq('space_id', workspace.id).order('created_at'),
       sb.from('space_members').select('user_id,display_name').eq('space_id', workspace.id).order('display_name'),
-      loadSharedShoppingIcons(workspace.id)
+      loadSharedShoppingIcons(workspace.id),
+      loadShoppingCategories(workspace.id)
     ]);
   } catch (error) {
     if (user?.id === account && version === refreshVersion) setConnectionUnavailable(true);
@@ -681,11 +713,12 @@ async function refresh() {
     }
     return;
   }
-  const [purchases, dishes, people, productIcons] = results;
+  const [purchases, dishes, people, productIcons, productCategories] = results;
   const snapshot = {
     space: workspace,
     items: purchases.data || [],
     productIcons,
+    productCategories,
     meals: dishes.data || [],
     members: (people.data || []).sort((a, b) => Number(a.display_name.startsWith('❤')) - Number(b.display_name.startsWith('❤')))
   };
@@ -1231,9 +1264,143 @@ $('shopping').addEventListener('submit', event => {
   event.target.elements.namedItem('amount').blur();
 });
 
+let shoppingCategoryFilter = 'all';
+const emptyProductCategories = {categories: [], assignments: {}};
+const pendingCategoryProducts = new Set();
+const categoryCollator = new Intl.Collator('ru');
+
+function shoppingCategoryData(workspace = space?.id) {
+  const snapshot = offlineState.snapshot;
+  return snapshot?.space.id === workspace ? snapshot?.productCategories || emptyProductCategories : emptyProductCategories;
+}
+
+async function loadShoppingCategories(workspace) {
+  try {
+    const [categories, products] = await Promise.all([
+      sb.from('shopping_categories').select('id,name').eq('space_id', workspace).order('sort_order'),
+      sb.from('shopping_product_categories').select('product_key,category_id').eq('space_id', workspace)
+    ]);
+    if (!categories.error && !products.error) {
+      return {
+        categories: categories.data || [],
+        assignments: Object.fromEntries((products.data || []).map(row => [row.product_key, row.category_id]))
+      };
+    }
+  } catch {}
+  return shoppingCategoryData(workspace);
+}
+
+function categoryOf(assignments, key) {
+  return Object.hasOwn(assignments, key) ? assignments[key] || '' : '';
+}
+
+function renderProductSettings(groups) {
+  const {categories, assignments} = shoppingCategoryData();
+  const list = $('productSettingsList');
+  const focusedKey = document.activeElement?.dataset.productCategory;
+  const options = [['', 'Без категории'], ...categories.map(category => [category.id, category.name])];
+  list.innerHTML = [...groups].sort((a, b) => categoryCollator.compare(a.name, b.name)).map(group => {
+    const key = productKey(group.name);
+    const selected = categoryOf(assignments, key);
+    return `<label class="product-category-row">
+      <span>${escape(group.name)}</span>
+      <select data-product-category="${escape(key)}" aria-label="Категория для ${escape(group.name)}" ${pendingCategoryProducts.has(key) ? 'disabled' : ''}>
+        ${options.map(([id, name]) => `<option value="${escape(id)}" ${id === selected ? 'selected' : ''}>${escape(name)}</option>`).join('')}
+      </select>
+    </label>`;
+  }).join('') || '<p class="muted small">Добавь продукт в покупки, чтобы назначить ему категорию.</p>';
+  if (focusedKey) list.querySelector('[data-product-category="' + CSS.escape(focusedKey) + '"]')?.focus({preventScroll: true});
+}
+
+$('shopping').addEventListener('click', event => {
+  const filter = event.target.closest('[data-shopping-category]');
+  if (filter) {
+    shoppingCategoryFilter = filter.dataset.shoppingCategory;
+    render();
+    $('shopping').querySelector('[data-shopping-category="' + CSS.escape(shoppingCategoryFilter) + '"]')?.focus();
+    return;
+  }
+  if (!event.target.closest('[data-product-settings]')) return;
+  event.preventDefault();
+  $('addShoppingCategory').reset();
+  $('productSettingsStatus').textContent = '';
+  renderProductSettings(groupProducts(items.filter(item => !item.recipe_only)));
+  $('productSettingsDialog').showModal();
+});
+$('productSettingsDialog').addEventListener('close', () => {
+  if (tab === 'shopping' && user) $('shopping').querySelector('[data-product-settings]')?.focus({preventScroll: true});
+});
+
+$('addShoppingCategory').onsubmit = async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const submit = form.querySelector('button');
+  if (submit.disabled || mutationNeedsInternet()) return;
+  const status = $('productSettingsStatus');
+  const name = form.elements.categoryName.value.trim().replace(/\s+/g, ' ');
+  const key = name.toLocaleLowerCase('ru-RU');
+  if (!name || ['все', 'без категории'].includes(key)) {
+    status.textContent = 'Введи название для новой категории.';
+    return;
+  }
+  submit.disabled = true;
+  status.textContent = '';
+  try {
+    const {error} = await sb.from('shopping_categories').insert({space_id: space.id, name});
+    if (error) throw error;
+    form.reset();
+    status.textContent = 'Категория «' + name + '» создана.';
+    await refresh();
+  } catch (error) {
+    status.textContent = error.code === '23505' ? 'Такая категория уже есть.' : 'Не удалось создать категорию.';
+  } finally {
+    submit.disabled = false;
+  }
+};
+
+$('productSettingsList').addEventListener('change', async event => {
+  const select = event.target.closest('[data-product-category]');
+  if (!select) return;
+  const key = select.dataset.productCategory;
+  if (pendingCategoryProducts.has(key) || mutationNeedsInternet()) {
+    select.value = categoryOf(shoppingCategoryData().assignments, key);
+    return;
+  }
+  const status = $('productSettingsStatus');
+  pendingCategoryProducts.add(key);
+  select.disabled = true;
+  status.textContent = '';
+  try {
+    const {error} = await sb.from('shopping_product_categories').upsert({
+      space_id: space.id, product_key: key, category_id: select.value || null
+    }, {onConflict: 'space_id,product_key'});
+    if (error) throw error;
+    status.textContent = 'Категория сохранена.';
+    await refresh();
+  } catch {
+    status.textContent = 'Не удалось сохранить категорию.';
+  } finally {
+    pendingCategoryProducts.delete(key);
+    const current = $('productSettingsList').querySelector('[data-product-category="' + CSS.escape(key) + '"]');
+    if (current) {
+      current.value = categoryOf(shoppingCategoryData().assignments, key);
+      current.disabled = false;
+    }
+  }
+});
+
 function renderShopping(groups, done) {
+  const categoryScroll = $('shopping').querySelector('.shopping-category-filters')?.scrollLeft || 0;
   const expanded = new Set(Array.from($('shopping').querySelectorAll('details[open]'), el => el.dataset.purchaseGroup));
-  const rows = [...groups].sort((a, b) => Number(a.purchased) - Number(b.purchased)).map(group => {
+  const {categories, assignments} = shoppingCategoryData();
+  const filters = [['all', 'Все'], ...categories.map(category => [category.id, category.name])];
+  const unassigned = groups.some(group => !categoryOf(assignments, productKey(group.name)));
+  if (unassigned || shoppingCategoryFilter === 'uncategorized') filters.push(['uncategorized', 'Без категории']);
+  if (!filters.some(([id]) => id === shoppingCategoryFilter)) shoppingCategoryFilter = 'all';
+  const visible = shoppingCategoryFilter === 'all' ? [...groups] : groups.filter(group => {
+    return (categoryOf(assignments, productKey(group.name)) || 'uncategorized') === shoppingCategoryFilter;
+  });
+  const rows = visible.sort((a, b) => Number(a.purchased) - Number(b.purchased)).map(group => {
     const prices = group.rows.filter(row => row.price != null);
     const total = prices.reduce((sum, row) => sum + Math.round(Number(row.price) * 100), 0) / 100;
     const status = purchaseStatus(group);
@@ -1282,7 +1449,12 @@ function renderShopping(groups, done) {
         </div>
       </form>
     </div>
-    <div class="card shop-card shop-list">${rows || '<div class="empty">Пока пусто. Добавьте первую покупку!</div>'}</div>`;
+    <div class="shopping-category-filters" role="group" aria-label="Категории покупок">
+      ${filters.map(([id, label]) => `<button type="button" class="filter-chip" data-shopping-category="${escape(id)}" aria-pressed="${id === shoppingCategoryFilter}">${escape(label)}</button>`).join('')}
+    </div>
+    <div class="card shop-card shop-list">${rows || `<div class="empty">${shoppingCategoryFilter === 'all' ? 'Пока пусто. Добавьте первую покупку!' : 'В этой категории пока нет покупок.'}</div>`}</div>
+    <a href="#product-settings" class="shopping-settings-link" data-product-settings>Настроить продукты</a>`;
+  $('shopping').querySelector('.shopping-category-filters').scrollLeft = categoryScroll;
 }
 
 const mealPhotoBucket = 'meal-photos';
@@ -2347,6 +2519,7 @@ function render(){if(!user)return;if(!space){$('headerPeople').innerHTML='';$('h
   const total = purchases.reduce((sum, item) => sum + (item.purchased ? Math.round(Number(item.price || 0) * 100) : 0), 0) / 100;
   renderHome(groups, done, pct, total);
   renderShopping(groups, done);
+  if ($('productSettingsDialog').open) renderProductSettings(groups);
   renderMeals(groups);
   observeMealPhotos();
   $('budget').innerHTML = sectionHeading('budget', 'Бюджет') + `
@@ -2532,6 +2705,8 @@ function resetAccountView() {
   for (const path of mealPhotoCache.keys()) releaseMealPhoto(path);
   if ($('mealDetailsDialog').open) $('mealDetailsDialog').close();
   if ($('editIngredientDialog').open) $('editIngredientDialog').close();
+  if ($('productSettingsDialog').open) $('productSettingsDialog').close();
+  shoppingCategoryFilter = 'all';
   if (channel) {
     const previous = channel;
     channel = null;
