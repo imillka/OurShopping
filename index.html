@@ -306,6 +306,7 @@ main:has(.meal-page-view) { padding-bottom: calc(28px + env(safe-area-inset-bott
 .meal-ingredient-line.meal-ingredient-bought { border-radius: 12px; background: #e9f7e9; border-bottom-color: transparent; margin-bottom: 2px; }
 .meal-ingredient-line .itemname { font-size: clamp(12px, 3.85vw, 17px); }
 .meal-ingredient-line .check { appearance: none; display: grid; place-items: center; width: 25px; height: 25px; padding: 0; margin: 0; border-radius: 8px; border: 1.5px solid #687287; background: #fff; }
+.meal-ingredient-line .check:disabled { opacity: .45; }
 .meal-ingredient-line .check:checked, .meal-ingredient-line .check:indeterminate { border-color: #20b729; background: #20b729; }
 .meal-ingredient-line .check:checked::after { content: ""; width: 10px; height: 5px; border: solid #fff; border-width: 0 0 2px 2px; transform: translateY(-1px) rotate(-45deg); }
 .meal-ingredient-line .check:indeterminate::after { content: ""; width: 10px; border-bottom: 2px solid #fff; }
@@ -848,15 +849,16 @@ function quantityLabel(rows, getQuantity = row => row.quantity) {
     .concat(descriptions).join(' + ');
 }
 
-function groupProducts(rows) {
+function groupProducts(rows, purchasesByName) {
   const groups = new Map();
   for (const item of rows) {
     const key = productKey(item.name);
     if (!groups.has(key)) groups.set(key, {id: item.id, name: item.name, rows: []});
     groups.get(key).rows.push(item);
   }
-  return [...groups.values()].map(group => {
-    const purchaseRows = group.rows.filter(row => !row.recipe_only);
+  return Array.from(groups, ([key, group]) => {
+    const ownPurchases = group.rows.filter(row => !row.recipe_only);
+    const purchaseRows = ownPurchases.length ? ownPurchases : purchasesByName?.get(key) ?? [];
     return {
       ...group,
       purchaseRows,
@@ -869,7 +871,7 @@ function groupProducts(rows) {
 
 function checkedBox(group) {
   const ids = (group.purchaseRows ?? group.rows).map(item => item.id).join(',');
-  return `<input class="check" type="checkbox" data-check="${escape(ids)}" aria-label="${escape(group.name)}" ${group.purchased ? 'checked' : ''} ${group.partial ? 'data-partial' : ''}>`;
+  return `<input class="check" type="checkbox" ${ids ? `data-check="${escape(ids)}"` : 'disabled title="Нет в списке покупок"'} aria-label="${escape(group.name)}" ${group.purchased ? 'checked' : ''} ${group.partial ? 'data-partial' : ''}>`;
 }
 
 function purchaseStatus(group) {
@@ -1607,7 +1609,7 @@ function mealProgressBar(percent) {
   return `<div class="bar" role="progressbar" aria-label="Куплено ингредиентов" aria-valuenow="${percent}"><i style="width:${percent}%"></i></div>`;
 }
 
-function renderMealList(byMeal) {
+function renderMealList(byMeal, purchasesByName) {
   const favorites = meals.filter(meal => mealPreferences[meal.id]?.favorite);
   const planned = meals.filter(meal => mealPreferences[meal.id]?.planned);
   const tabs = [
@@ -1617,7 +1619,7 @@ function renderMealList(byMeal) {
   ];
   const visible = mealListFilter === 'favorite' ? favorites : mealListFilter === 'planned' ? planned : meals;
   const tiles = visible.map(meal => {
-    const ingredients = groupProducts(byMeal.get(meal.id) || []);
+    const ingredients = groupProducts(byMeal.get(meal.id) || [], purchasesByName);
     const {done, total, percent} = mealProgress(ingredients);
     return `<article class="meal-tile">
       <a class="meal-tile-link" href="${escape(mealHref(meal.id))}" data-meal-open="${escape(meal.id)}">
@@ -1751,10 +1753,10 @@ function renderMealIngredients(meal, ingredients) {
     </div>
     ${total ? mealProgressBar(percent) : ''}
     ${ingredients.map(group => {
-      const purchaseLabel = !group.purchaseRows.length ? 'Только для рецепта'
+      const purchaseLabel = group.rows.every(row => row.recipe_only) ? 'Только для рецепта'
         : group.quantity !== quantityLabel(group.rows, recipeAmount) ? 'Купить: ' + displayShoppingQuantity(group.quantity) : '';
       return `<div class="row meal-ingredient-line${group.purchased ? ' meal-ingredient-bought' : ''}">
-      ${group.purchaseRows.length ? checkedBox(group) : ''}
+      ${checkedBox(group)}
       <div class="grow">
         <div class="itemname">${escape(group.name)}</div>
         ${purchaseLabel || group.partial ? `<div class="muted small">${escape(group.partial ? purchaseStatus(group) : purchaseLabel)}</div>` : ''}
@@ -1838,12 +1840,13 @@ function renderMealDetail(meal, ingredients) {
   };
 }
 
-function renderMeals() {
+function renderMeals(purchaseGroups) {
   const id = tab === 'meals' ? currentMealId() : null;
   lastMealRoute = id;
   $('app').classList.toggle('meals-list-view', tab === 'meals' && !id);
   $('app').classList.toggle('meal-page-view', !!id);
   $('nav').classList.toggle('meal-page-nav-hidden', !!id);
+  const purchasesByName = new Map(purchaseGroups.map(group => [productKey(group.name), group.purchaseRows]));
   const byMeal = new Map();
   for (const item of items) {
     if (!item.meal_id) continue;
@@ -1852,13 +1855,13 @@ function renderMeals() {
   }
   if (id) {
     const meal = meals.find(row => row.id === id);
-    if (meal) renderMealDetail(meal, groupProducts(byMeal.get(meal.id) || []));
+    if (meal) renderMealDetail(meal, groupProducts(byMeal.get(meal.id) || [], purchasesByName));
     else {
       $('meals').innerHTML = '<div class="card"><h2>Блюдо не найдено</h2><button type="button" class="btn alt" id="mealBack">К списку блюд</button></div>';
       $('mealBack').onclick = closeMealPage;
     }
   } else {
-    renderMealList(byMeal);
+    renderMealList(byMeal, purchasesByName);
   }
 }
 
@@ -2192,7 +2195,7 @@ function render(){if(!user)return;if(!space){$('headerPeople').innerHTML='';$('h
   const total = purchases.reduce((sum, item) => sum + (item.purchased ? Math.round(Number(item.price || 0) * 100) : 0), 0) / 100;
   renderHome(groups, done, pct, total);
   renderShopping(groups, done);
-  renderMeals();
+  renderMeals(groups);
   observeMealPhotos();
   $('budget').innerHTML = sectionHeading('budget', 'Бюджет') + `
     <div class="card">
