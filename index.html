@@ -319,6 +319,11 @@ main:has(.meal-page-view) { padding-bottom: calc(28px + env(safe-area-inset-bott
 }
 .meal-ingredient-add > summary::-webkit-details-marker { display: none; }
 .meal-ingredient-add form { padding-top: 7px; }
+.meal-ingredient-form { display: grid; gap: 8px; }
+.meal-ingredient-form > .btn { justify-self: start; }
+.meal-ingredient-form label { margin-top: 0; }
+.meal-ingredient-form [data-purchase-amount][hidden] { display: none; }
+.ingredient-menu .meal-menu-panel { min-width: 155px; width: max-content; max-width: min(240px, 70vw); }
 .meal-description { margin-bottom: 0; }
 .meal-detail-empty { margin: 9px 0 2px; color: #60697f; font-size: 14px; }
 .meal-fact-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 9px; }
@@ -499,6 +504,17 @@ input, textarea, [contenteditable="true"] {
     <div class="row dialog-actions">
       <button class="btn alt" id="cancelPrice" type="button">Отмена</button>
       <button class="btn" id="submitPrice">Сохранить</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="editIngredientDialog" aria-labelledby="editIngredientTitle">
+  <form id="editIngredientForm" class="meal-ingredient-form">
+    <h2 id="editIngredientTitle">Редактировать ингредиент</h2>
+    <div id="editIngredientFields"></div>
+    <p id="editIngredientError" role="alert"></p>
+    <div class="row dialog-actions">
+      <button type="button" class="btn alt" id="cancelIngredient">Отмена</button>
+      <button type="submit" class="btn" id="saveIngredient">Сохранить</button>
     </div>
   </form>
 </dialog>
@@ -794,6 +810,13 @@ const priceLimit = 9999999999.99;
 const numberFormat = new Intl.NumberFormat('ru-RU', {maximumFractionDigits: 8});
 const money = value => Number(value).toLocaleString('ru-RU', {maximumFractionDigits: 2}) + ' ₽';
 const productKey = name => name.trim().replace(/\s+/g, ' ').toLocaleLowerCase('ru-RU').replace(/ё/g, 'е');
+const unitAliases = new Map([
+  ['шт', ''], ['штука', ''], ['штуки', ''], ['штук', ''],
+  ['грамм', 'г'], ['грамма', 'г'], ['граммов', 'г'],
+  ['килограмм', 'кг'], ['килограмма', 'кг'], ['килограммов', 'кг'],
+  ['литр', 'л'], ['литра', 'л'], ['литров', 'л'],
+  ['миллилитр', 'мл'], ['миллилитра', 'мл'], ['миллилитров', 'мл']
+]);
 
 function readQuantity(value) {
   const text = String(value ?? '').trim();
@@ -803,14 +826,14 @@ function readQuantity(value) {
   const amount = Number(match[1].replace(',', '.'));
   if (!Number.isFinite(amount) || amount <= 0) return {text};
   const suffix = (match[2] || '').trim().toLocaleLowerCase('ru-RU').replace(/\.$/, '');
-  return {amount, unit: suffix === 'шт' ? '' : suffix};
+  return {amount, unit: unitAliases.get(suffix) ?? suffix};
 }
 
-function quantityLabel(rows) {
+function quantityLabel(rows, getQuantity = row => row.quantity) {
   const amounts = new Map();
   const descriptions = [];
   for (const row of rows) {
-    const quantity = readQuantity(row.quantity);
+    const quantity = readQuantity(getQuantity(row));
     if (quantity.text) descriptions.push(quantity.text);
     else amounts.set(quantity.unit, (amounts.get(quantity.unit) || 0) + quantity.amount);
   }
@@ -825,21 +848,25 @@ function groupProducts(rows) {
     if (!groups.has(key)) groups.set(key, {id: item.id, name: item.name, rows: []});
     groups.get(key).rows.push(item);
   }
-  return [...groups.values()].map(group => ({
-    ...group,
-    purchased: group.rows.every(row => row.purchased),
-    partial: group.rows.some(row => row.purchased) && group.rows.some(row => !row.purchased),
-    quantity: quantityLabel(group.rows)
-  }));
+  return [...groups.values()].map(group => {
+    const purchaseRows = group.rows.filter(row => !row.recipe_only);
+    return {
+      ...group,
+      purchaseRows,
+      purchased: purchaseRows.length > 0 && purchaseRows.every(row => row.purchased),
+      partial: purchaseRows.some(row => row.purchased) && purchaseRows.some(row => !row.purchased),
+      quantity: quantityLabel(purchaseRows)
+    };
+  });
 }
 
 function checkedBox(group) {
-  const ids = group.rows.map(item => item.id).join(',');
+  const ids = (group.purchaseRows ?? group.rows).map(item => item.id).join(',');
   return `<input class="check" type="checkbox" data-check="${escape(ids)}" aria-label="${escape(group.name)}" ${group.purchased ? 'checked' : ''} ${group.partial ? 'data-partial' : ''}>`;
 }
 
 function purchaseStatus(group) {
-  const bought = group.rows.filter(item => item.purchased);
+  const bought = group.purchaseRows.filter(item => item.purchased);
   return group.partial ? 'Куплено: ' + quantityLabel(bought) + ' из ' + group.quantity : '';
 }
 
@@ -940,6 +967,13 @@ function priceFrom(fields, quantity) {
 }
 
 async function insertPurchase(form, mealId = null) {
+  if (mealId) {
+    const ingredient = ingredientFrom(new FormData(form));
+    if (ingredient.error) return ingredient;
+    return sb.from('shopping_items').insert({
+      ...ingredient.data, space_id: space.id, meal_id: mealId, created_by: user.id
+    }).select('id').single();
+  }
   const fields = new FormData(form);
   const name = String(fields.get('name') || '').trim().replace(/\s+/g, ' ');
   if (!name) return {error: {message: 'Введите название товара.'}};
@@ -952,7 +986,7 @@ async function insertPurchase(form, mealId = null) {
   const unit = String(fields.get('unit') || '');
   const result = await sb.from('shopping_items').insert({
     space_id: space.id,
-    meal_id: mealId,
+    meal_id: null,
     name,
     quantity: quantityText(quantity, shoppingUnits.some(([value]) => value === unit) ? unit : ''),
     price,
@@ -1554,8 +1588,9 @@ function ingredientCountLabel(count) {
 }
 
 function mealProgress(ingredients) {
+  const total = ingredients.filter(group => group.purchaseRows.length).length;
   const done = ingredients.filter(group => group.purchased).length;
-  return {done, percent: ingredients.length ? Math.round(done / ingredients.length * 100) : 0};
+  return {done, total, percent: total ? Math.round(done / total * 100) : 0};
 }
 
 function mealProgressBar(percent) {
@@ -1573,15 +1608,14 @@ function renderMealList(byMeal) {
   const visible = mealListFilter === 'favorite' ? favorites : mealListFilter === 'planned' ? planned : meals;
   const tiles = visible.map(meal => {
     const ingredients = groupProducts(byMeal.get(meal.id) || []);
-    const {done, percent} = mealProgress(ingredients);
+    const {done, total, percent} = mealProgress(ingredients);
     return `<article class="meal-tile">
       <a class="meal-tile-link" href="${escape(mealHref(meal.id))}" data-meal-open="${escape(meal.id)}">
         ${mealCover(meal, 'meal-tile-photo')}
         <div>
           <h2 class="meal-tile-title">${escape(meal.name)}</h2>
           <p class="meal-tile-count">${ingredientCountLabel(ingredients.length)}</p>
-          ${mealProgressBar(percent)}
-          <p class="meal-tile-progress">Куплено ${done} из ${ingredients.length}</p>
+          ${total ? mealProgressBar(percent) + `<p class="meal-tile-progress">Куплено ${done} из ${total}</p>` : ''}
         </div>
       </a>
       <span class="meal-tile-chevron">${icon('next')}</span>
@@ -1623,32 +1657,88 @@ function renderMealFacts(meal) {
   return `<div class="meal-facts">${facts.map(([glyph, label]) => `<span class="meal-fact">${icon(glyph)} ${escape(label)}</span>`).join('')}</div>`;
 }
 
+const recipeAmount = row => row.recipe_quantity ?? row.quantity;
+const recipeAmountLabel = rows => rows.length === 1 && rows[0].recipe_quantity
+  ? rows[0].recipe_quantity
+  : displayShoppingQuantity(quantityLabel(rows, recipeAmount));
+
+function ingredientFields(item) {
+  const mode = item?.recipe_only ? 'recipe' : item?.recipe_quantity != null ? 'separate' : 'same';
+  const option = (value, label) => `<option value="${value}" ${mode === value ? 'selected' : ''} ${value === 'recipe' && item?.purchased ? 'disabled' : ''}>${label}</option>`;
+  return `<div class="meal-ingredient-form">
+    ${productInput('Ингредиент')}
+    <label>В рецепт<input name="recipeAmount" maxlength="120" placeholder="Например, 200 г или 2 ст. л." required></label>
+    <label>В покупки<select name="purchaseMode">
+      ${option('same', 'Столько же')}
+      ${option('separate', 'Другое количество')}
+      ${option('recipe', 'Только для рецепта')}
+    </select></label>
+    <label data-purchase-amount hidden>Сколько купить<input name="purchaseAmount" maxlength="120" placeholder="Например, 1 бутылка" disabled></label>
+  </div>`;
+}
+
+function syncIngredientFields(form) {
+  const separate = form.elements.purchaseMode.value === 'separate';
+  form.querySelector('[data-purchase-amount]').hidden = !separate;
+  form.elements.purchaseAmount.disabled = !separate;
+  form.elements.purchaseAmount.required = separate;
+}
+
+document.addEventListener('change', event => {
+  if (event.target.matches('.meal-ingredient-form select[name="purchaseMode"]')) {
+    syncIngredientFields(event.target.form);
+  }
+});
+
+function ingredientFrom(fields) {
+  const value = key => String(fields.get(key) || '').trim().replace(/\s+/g, ' ');
+  const name = value('name');
+  const recipe = value('recipeAmount');
+  const mode = fields.get('purchaseMode');
+  const quantity = mode === 'separate' ? value('purchaseAmount') : recipe;
+  if (!name || !recipe || !quantity) {
+    return {error: {message: 'Укажите название ингредиента и количество.'}};
+  }
+  return {data: {
+    name,
+    quantity: mode === 'recipe' ? null : quantity,
+    recipe_quantity: mode === 'same' ? null : recipe,
+    recipe_only: mode === 'recipe'
+  }};
+}
+
 function renderMealIngredients(meal, ingredients) {
-  const {done, percent} = mealProgress(ingredients);
+  const {done, total, percent} = mealProgress(ingredients);
   const wasOpen = $('meals').querySelector('.meal-ingredient-add[data-meal="' + CSS.escape(meal.id) + '"]')?.open;
   return `<section class="meal-panel meal-ingredients-card">
     <div class="row between">
       <h2>Список ингредиентов</h2>
-      <span class="meal-panel-count">Куплено <strong>${done} из ${ingredients.length}</strong></span>
+      ${total ? `<span class="meal-panel-count">Куплено <strong>${done} из ${total}</strong></span>` : ''}
     </div>
-    ${mealProgressBar(percent)}
-    ${ingredients.map(group => `<div class="row meal-ingredient-line${group.purchased ? ' meal-ingredient-bought' : ''}">
-      ${checkedBox(group)}
+    ${total ? mealProgressBar(percent) : ''}
+    ${ingredients.map(group => {
+      const purchaseLabel = !group.purchaseRows.length ? 'Только для рецепта'
+        : group.quantity !== quantityLabel(group.rows, recipeAmount) ? 'Купить: ' + displayShoppingQuantity(group.quantity) : '';
+      return `<div class="row meal-ingredient-line${group.purchased ? ' meal-ingredient-bought' : ''}">
+      ${group.purchaseRows.length ? checkedBox(group) : ''}
       <div class="grow">
         <div class="itemname">${escape(group.name)}</div>
-        ${group.partial ? `<div class="muted small">${escape(purchaseStatus(group))}</div>` : ''}
+        ${purchaseLabel || group.partial ? `<div class="muted small">${escape(group.partial ? purchaseStatus(group) : purchaseLabel)}</div>` : ''}
       </div>
-      <span class="meal-ingredient-qty">${escape(displayShoppingQuantity(group.quantity))}</span>
+      <span class="meal-ingredient-qty">${escape(recipeAmountLabel(group.rows))}</span>
       <details class="ingredient-menu">
         <summary aria-label="Действия с ингредиентом">${icon('more')}</summary>
-        <div class="meal-menu-panel"><button type="button" class="meal-action-danger" data-remove-ingredient="${escape(group.rows.map(row => row.id).join(','))}" data-meal="${escape(meal.id)}">Удалить ингредиент</button></div>
+        <div class="meal-menu-panel">
+          ${group.rows.map(row => `<button type="button" data-edit-ingredient="${escape(row.id)}">Редактировать${group.rows.length > 1 ? ' · ' + escape(recipeAmountLabel([row])) : ''}</button>`).join('')}
+          <button type="button" class="meal-action-danger" data-remove-ingredient="${escape(group.rows.map(row => row.id).join(','))}" data-meal="${escape(meal.id)}">Удалить ингредиент</button>
+        </div>
       </details>
-    </div>`).join('')}
+    </div>`;
+    }).join('')}
     <details class="meal-ingredient-add" data-meal="${escape(meal.id)}" ${wasOpen ? 'open' : ''}>
       <summary>${icon('plus')} Добавить ингредиент</summary>
-      <form data-ingredient="${escape(meal.id)}" data-draft>
-        ${productInput('Ингредиент')}
-        <div class="quantity-with-unit">${quantityStepper()}<label>Единица${unitSelect()}</label></div>
+      <form class="meal-ingredient-form" data-ingredient="${escape(meal.id)}" data-draft>
+        ${ingredientFields()}
         <button class="btn">Добавить</button>
       </form>
     </details>
@@ -1773,6 +1863,15 @@ $('meals').addEventListener('click', async event => {
     }
     return;
   }
+  const edit = event.target.closest('[data-edit-ingredient]');
+  if (edit) {
+    const item = items.find(row => row.id === edit.dataset.editIngredient);
+    if (item) {
+      edit.closest('details').open = false;
+      openIngredientEditor(item);
+    }
+    return;
+  }
   const remove = event.target.closest('[data-remove-ingredient]');
   if (!remove || mutationNeedsInternet() || !confirm('Удалить ингредиент из блюда и покупок?')) return;
   remove.disabled = true;
@@ -1785,6 +1884,63 @@ $('meals').addEventListener('click', async event => {
     remove.disabled = false;
   }
 });
+
+let ingredientBeingEdited;
+function openIngredientEditor(item) {
+  const form = $('editIngredientForm');
+  ingredientBeingEdited = item;
+  $('editIngredientFields').innerHTML = ingredientFields(item);
+  form.elements.namedItem('name').value = item.name;
+  form.elements.recipeAmount.value = recipeAmount(item) || '1 шт.';
+  form.elements.purchaseAmount.value = item.quantity ?? '';
+  syncIngredientFields(form);
+  $('editIngredientError').textContent = '';
+  $('editIngredientDialog').showModal();
+}
+
+$('cancelIngredient').onclick = () => $('editIngredientDialog').close();
+$('editIngredientDialog').addEventListener('cancel', event => {
+  if ($('saveIngredient').disabled) event.preventDefault();
+});
+$('editIngredientForm').onsubmit = async event => {
+  event.preventDefault();
+  const item = ingredientBeingEdited;
+  const save = $('saveIngredient');
+  if (!item || !space || save.disabled || mutationNeedsInternet()) return;
+  const errorLabel = $('editIngredientError');
+  if (item.purchased_by && item.purchased_by !== user.id) {
+    errorLabel.textContent = 'Отмеченный ингредиент может изменить тот, кто его купил.';
+    return;
+  }
+  const ingredient = ingredientFrom(new FormData(event.currentTarget));
+  if (ingredient.error) {
+    errorLabel.textContent = ingredient.error.message;
+    return;
+  }
+  save.disabled = $('cancelIngredient').disabled = true;
+  errorLabel.textContent = '';
+  try {
+    let update = sb.from('shopping_items').update(ingredient.data)
+      .eq('space_id', space.id).eq('meal_id', item.meal_id).eq('id', item.id)
+      .eq('name', item.name).eq('recipe_only', !!item.recipe_only).eq('purchased', item.purchased);
+    for (const field of ['quantity', 'recipe_quantity']) {
+      update = item[field] == null ? update.is(field, null) : update.eq(field, item[field]);
+    }
+    const {data, error} = await update.select('id').maybeSingle();
+    if (error) throw error;
+    if (!data) {
+      errorLabel.textContent = 'Ингредиент изменился. Откройте его заново, чтобы увидеть актуальные данные.';
+      await refresh();
+      return;
+    }
+    $('editIngredientDialog').close();
+    await refresh();
+  } catch (error) {
+    errorLabel.textContent = error.message || 'Не удалось сохранить ингредиент.';
+  } finally {
+    save.disabled = $('cancelIngredient').disabled = false;
+  }
+};
 
 function openPrice(item) {
   const form = $('setPriceForm');
@@ -1863,7 +2019,10 @@ function bindPurchaseForms() {
         if (result.error) alert(result.error.message);
         else {
           const current = liveForm();
-          if (current && current.elements.namedItem('name').value.trim() === name) current.reset();
+          if (current && current.elements.namedItem('name').value.trim() === name) {
+            current.reset();
+            if (current.dataset.ingredient) syncIngredientFields(current);
+          }
           if (form.id === 'addMeal') createMealOpen = false;
           await refresh();
           if (form.id === 'addMeal' && tab === 'meals') openMealPage(result.data.id);
@@ -1929,13 +2088,17 @@ function restoreDrafts(drafts) {
       ? $('meals').querySelector('[data-ingredient="' + CSS.escape(draft.mealId) + '"]')
       : $(draft.id);
     if (!form) continue;
+    if (draft.mealId) {
+      form.elements.purchaseMode.value = draft.fields.find(entry => entry.name === 'purchaseMode').value;
+      syncIngredientFields(form);
+    }
     for (const entry of draft.fields) {
       const field = form.elements.namedItem(entry.name);
       field.value = entry.value;
       if (entry.name === 'productIcon' && validShoppingIcon(entry.value)) {
         form.querySelector('[data-shop-icon]').innerHTML = shoppingIconMarkup(entry.value);
       }
-      if (!entry.focused || form.closest('section').id !== tab) continue;
+      if (!entry.focused || form.closest('section[id]').id !== tab) continue;
       field.focus({preventScroll: true});
       if (entry.selectionStart !== null && entry.selectionStart !== undefined) {
         field.setSelectionRange(entry.selectionStart, entry.selectionEnd);
@@ -1987,10 +2150,11 @@ function sectionHeading(iconName, title, badge = '') {
 
 function render(){if(!user)return;if(!space){$('headerPeople').innerHTML='';$('home').innerHTML='<div class="card"><h2>Ждём приглашения 💌</h2><p>Аккаунт создан, но ещё не добавлен в общее пространство. Попросите администратора добавить участника.</p><button class="btn alt" id="logout">Выйти</button></div>';$('logout').onclick=signOutFromApp;for(const id of ['shopping','meals','budget'])$(id).innerHTML='';return}
   const drafts = snapshotDrafts();
-  const groups = groupProducts(items);
+  const purchases = items.filter(item => !item.recipe_only);
+  const groups = groupProducts(purchases);
   const done = groups.filter(group => group.purchased).length;
   const pct = groups.length ? Math.round(done / groups.length * 100) : 0;
-  const total = items.reduce((sum, item) => sum + (item.purchased ? Math.round(Number(item.price || 0) * 100) : 0), 0) / 100;
+  const total = purchases.reduce((sum, item) => sum + (item.purchased ? Math.round(Number(item.price || 0) * 100) : 0), 0) / 100;
   renderHome(groups, done, pct, total);
   renderShopping(groups, done);
   renderMeals();
@@ -2109,7 +2273,7 @@ function applySavedPurchases(shouldRender = true) {
   if (!snapshot || snapshot.space.id !== space?.id) return;
   items = snapshot.items.map(item => {
     const entry = offlineState.pending[item.id];
-    if (!entry || entry.spaceId !== space.id || item.purchased === entry.checked) return item;
+    if (item.recipe_only || !entry || entry.spaceId !== space.id || item.purchased === entry.checked) return item;
     return {
       ...item,
       purchased: entry.checked,
@@ -2177,6 +2341,7 @@ function resetAccountView() {
   mealPhotoObserver?.disconnect();
   for (const path of mealPhotoCache.keys()) releaseMealPhoto(path);
   if ($('mealDetailsDialog').open) $('mealDetailsDialog').close();
+  if ($('editIngredientDialog').open) $('editIngredientDialog').close();
   if (channel) {
     const previous = channel;
     channel = null;
@@ -2207,7 +2372,7 @@ function purchasePatch(entry, account) {
 
 function sendPurchase(entry, account, ids) {
   return sb.from('shopping_items').update(purchasePatch(entry, account))
-    .eq('space_id', entry.spaceId).eq('purchased', !entry.checked).in('id', ids)
+    .eq('space_id', entry.spaceId).eq('recipe_only', false).eq('purchased', !entry.checked).in('id', ids)
     .select('id,purchased,purchased_by,purchased_at');
 }
 
