@@ -1,4 +1,4 @@
-const CACHE = 'our-shopping-shell-v4';
+const CACHE = 'our-shopping-shell-v5';
 const ROOT = new URL('./', self.location.href).href;
 const SDK = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
 const ASSETS = [

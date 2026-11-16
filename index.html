@@ -191,6 +191,9 @@ main:has(#app:not(.hidden)) { padding: env(safe-area-inset-top, 0px) clamp(11px,
 .meal-feature-photo[hidden], .meal-photo-preview[hidden] { display: none; }
 .meal-description { white-space: pre-wrap; overflow-wrap: anywhere; margin: 11px 0 6px; line-height: 1.45; }
 .meal-recipe-link { display: inline-block; font-weight: 650; margin: 7px 0 4px; }
+.meal-recipe-video { display: block; width: 100%; max-height: min(64vh, 550px); margin: 10px 0 4px; border-radius: 13px; background: #111827; }
+.meal-recipe-video[hidden] { display: none; }
+.meal-recipe-retry { margin-top: 7px; }
 #mealDetailsDialog {
   width: min(410px, calc(100% - 30px)); max-height: calc(100% - 26px); max-height: calc(100dvh - 26px);
   padding: 18px; border: 1px solid #e9edf4; border-radius: 18px; color: #0a1020;
@@ -205,7 +208,9 @@ main:has(#app:not(.hidden)) { padding: env(safe-area-inset-top, 0px) clamp(11px,
 }
 #mealDetailsDialog input[type="file"] { padding: 8px; }
 .meal-photo-preview { display: block; max-width: 100%; max-height: 115px; margin: 8px 0; border-radius: 10px; }
-#removeMealPhoto { color: #b72542; }
+#removeMealPhoto, #removeMealVideo { color: #b72542; }
+#mealVideoStatus { margin: 4px 0 0; }
+#mealVideoStatus:empty { display: none; }
 
 #app.meals-list-view > .app-header { padding-bottom: 10px; }
 #app.meal-page-view > .app-header { display: none; }
@@ -538,6 +543,12 @@ input, textarea, [contenteditable="true"] {
     <textarea id="mealDescription" name="description" rows="3" maxlength="2000" placeholder="Заметки или способ приготовления"></textarea>
     <label for="mealRecipe">Ссылка на рецепт</label>
     <input id="mealRecipe" name="recipe" type="url" inputmode="url" maxlength="2000" placeholder="https://www.instagram.com/…">
+    <div id="mealVideoFields" hidden>
+      <label for="mealVideo">Видео рецепта</label>
+      <input id="mealVideo" type="file" accept=".mp4,.mov,.webm,video/mp4,video/quicktime,video/webm">
+      <p id="mealVideoStatus" class="small muted" role="status"></p>
+      <button id="removeMealVideo" type="button" class="link" hidden>Убрать видео</button>
+    </div>
     <div id="mealFactFields" class="meal-fact-fields" hidden>
       <label>Время, мин<input id="mealPrepMinutes" type="number" min="1" max="1440" step="1" inputmode="numeric"></label>
       <label>Порции<input id="mealServings" type="number" min="1" max="999" step="1" inputmode="numeric"></label>
@@ -577,7 +588,9 @@ if (!globalThis.supabase?.createClient) {
   throw new Error('Supabase SDK is unavailable');
 }
 const {createClient} = globalThis.supabase;
-const sb=createClient('https://jqvgvaoihmwwopamqobx.supabase.co','sb_publishable_atkJptARPDCq_JxYMKUveA_oPbCjQuR',{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'sb-jqvgvaoihmwwopamqobx-auth-token'}});
+const supabaseProject = 'jqvgvaoihmwwopamqobx';
+const supabaseKey = 'sb_publishable_atkJptARPDCq_JxYMKUveA_oPbCjQuR';
+const sb=createClient('https://' + supabaseProject + '.supabase.co',supabaseKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'sb-' + supabaseProject + '-auth-token'}});
 const $=id=>document.getElementById(id);const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));let user=null,space=null,items=[],meals=[],members=[],tab='home',channel=null;
 const nameOf=id=>members.find(m=>m.user_id===id)?.display_name||'Участник';
 const icons = {
@@ -1274,6 +1287,9 @@ function renderShopping(groups, done) {
 
 const mealPhotoBucket = 'meal-photos';
 const maxMealPhotoSize = 3 * 1024 * 1024;
+const mealVideoBucket = 'meal-videos';
+const maxMealVideoSize = 20_000_000;
+const mealVideoTypes = {mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm'};
 const mealPhotoCache = new Map();
 let mealPhotoObserver;
 let mealDetailsDraft = null;
@@ -1362,12 +1378,19 @@ function clearMealPhotoPreview() {
 
 async function openMealDetails(meal) {
   clearMealPhotoPreview();
-  const draft = {id: meal.id, originalPath: meal.photo_path, revision: meal.details_revision, hasFacts: Object.hasOwn(meal, 'prep_minutes'), removePhoto: false};
+  const draft = {
+    id: meal.id, originalPath: meal.photo_path, revision: meal.details_revision,
+    hasFacts: Object.hasOwn(meal, 'prep_minutes'), removePhoto: false,
+    hasVideo: Object.hasOwn(meal, 'recipe_video_path'), originalVideo: meal.recipe_video_path, removeVideo: false
+  };
   mealDetailsDraft = draft;
   $('mealDetailsForm').reset();
   $('mealDetailsName').textContent = meal.name;
   $('mealDescription').value = meal.description || '';
   $('mealRecipe').value = meal.recipe_url || '';
+  $('mealVideoFields').hidden = !draft.hasVideo;
+  $('mealVideoStatus').textContent = draft.originalVideo ? 'Видео уже прикреплено.' : 'MP4, MOV или WebM до 20 МБ.';
+  $('removeMealVideo').hidden = !draft.originalVideo;
   $('mealFactFields').hidden = !draft.hasFacts;
   $('mealPrepMinutes').value = meal.prep_minutes ?? '';
   $('mealServings').value = meal.servings ?? '';
@@ -1399,6 +1422,21 @@ $('removeMealPhoto').onclick = () => {
   mealDetailsDraft.removePhoto = true;
   $('mealPhoto').value = '';
   $('removeMealPhoto').hidden = true;
+};
+$('mealVideo').onchange = () => {
+  const file = $('mealVideo').files[0];
+  if (!file || !mealDetailsDraft) return;
+  mealDetailsDraft.removeVideo = false;
+  $('mealDetailsError').textContent = '';
+  $('mealVideoStatus').textContent = '';
+  $('removeMealVideo').hidden = false;
+};
+$('removeMealVideo').onclick = () => {
+  mealDetailsDraft.removeVideo = true;
+  $('mealVideo').value = '';
+  $('mealVideoStatus').textContent = mealDetailsDraft.originalVideo
+    ? 'Видео будет удалено после сохранения.' : 'MP4, MOV или WebM до 20 МБ.';
+  $('removeMealVideo').hidden = true;
 };
 $('cancelMealDetails').onclick = () => $('mealDetailsDialog').close();
 $('mealDetailsDialog').addEventListener('cancel', event => {
@@ -1448,6 +1486,46 @@ async function removeMealPhotoFile(path) {
   if (user) await storeRequest('photos', 'readwrite', store => store.delete(photoKey(user.id, path))).catch(() => {});
 }
 
+async function uploadMealVideo(file, path, contentType) {
+  const {data, error} = await sb.auth.getSession();
+  if (error || !data.session?.access_token) throw new Error('Войди снова, чтобы загрузить видео.');
+  $('mealVideoStatus').textContent = 'Готовим загрузку видео…';
+  try {
+    const {Upload} = await import('https://cdn.jsdelivr.net/npm/tus-js-client@4.3.1/+esm');
+    await new Promise((resolve, reject) => {
+      const upload = new Upload(file, {
+        endpoint: `https://${supabaseProject}.storage.supabase.co/storage/v1/upload/resumable`,
+        headers: {authorization: 'Bearer ' + data.session.access_token, apikey: supabaseKey},
+        metadata: {bucketName: mealVideoBucket, objectName: path, contentType, cacheControl: '3600'},
+        chunkSize: 6 * 1024 * 1024,
+        uploadDataDuringCreation: true,
+        storeFingerprintForResuming: false,
+        retryDelays: [0, 1000, 3000, 5000, 10000],
+        onProgress: (sent, total) => {
+          $('mealVideoStatus').textContent = 'Загружаем видео… ' + Math.floor(sent / total * 100) + '%';
+        },
+        onError: reject,
+        onSuccess: resolve
+      });
+      upload.start();
+    });
+    $('mealVideoStatus').textContent = 'Видео загружено. Сохраняем блюдо…';
+  } catch (error) {
+    console.warn('Не удалось загрузить видео рецепта:', error);
+    throw new Error('Не удалось загрузить видео. Проверь соединение и попробуй ещё раз.');
+  }
+}
+
+async function removeMealVideoFile(path) {
+  if (!path) return;
+  try {
+    const {error} = await sb.storage.from(mealVideoBucket).remove([path]);
+    if (error) throw error;
+  } catch (error) {
+    console.warn('Не удалось удалить видео рецепта:', error.message);
+  }
+}
+
 $('mealDetailsForm').onsubmit = async event => {
   event.preventDefault();
   const draft = mealDetailsDraft;
@@ -1466,6 +1544,12 @@ $('mealDetailsForm').onsubmit = async event => {
     return;
   }
   const file = $('mealPhoto').files[0];
+  const video = draft.hasVideo ? $('mealVideo').files[0] : null;
+  const videoExtension = video?.name.split('.').pop().toLowerCase();
+  if (video && (!Object.hasOwn(mealVideoTypes, videoExtension) || !video.size || video.size > maxMealVideoSize)) {
+    errorText.textContent = 'Выбери видео MP4, MOV или WebM размером до 20 МБ.';
+    return;
+  }
   const description = $('mealDescription').value.trim();
   const facts = draft.hasFacts ? {
     prep_minutes: $('mealPrepMinutes').value ? Number($('mealPrepMinutes').value) : null,
@@ -1475,8 +1559,11 @@ $('mealDetailsForm').onsubmit = async event => {
   const workspace = space.id;
   const storage = file ? sb.storage.from(mealPhotoBucket) : null;
   let uploadedPath = null;
+  let uploadedVideo = null;
+  const removingVideo = draft.removeVideo;
   errorText.textContent = '';
   submit.disabled = cancel.disabled = true;
+  $('mealVideo').disabled = $('removeMealVideo').disabled = true;
   try {
     if (file) {
       const blob = await resizeMealPhoto(file);
@@ -1484,24 +1571,37 @@ $('mealDetailsForm').onsubmit = async event => {
       const {error} = await storage.upload(uploadedPath, blob, {contentType: 'image/jpeg', upsert: false});
       if (error) throw new Error('Не удалось загрузить фото. ' + error.message);
     }
+    if (video) {
+      uploadedVideo = workspace + '/' + draft.id + '/' + crypto.randomUUID() + '.' + videoExtension;
+      await uploadMealVideo(video, uploadedVideo, mealVideoTypes[videoExtension]);
+    }
     const nextPath = uploadedPath || (draft.removePhoto ? null : draft.originalPath);
+    const nextVideo = uploadedVideo || (removingVideo ? null : draft.originalVideo);
+    const videoFields = draft.hasVideo ? {recipe_video_path: nextVideo} : {};
     const {data, error} = await sb.from('meals').update({
       description, recipe_url: recipe?.href || null, photo_path: nextPath,
-      details_revision: draft.revision + 1, ...facts
+      details_revision: draft.revision + 1, ...facts, ...videoFields
     }).eq('space_id', workspace).eq('id', draft.id).eq('details_revision', draft.revision).select('id');
     if (error) throw new Error(error.message);
     if (!data?.length) throw new Error('Блюдо изменилось в другой вкладке. Закрой форму и открой её заново.');
     uploadedPath = null;
+    uploadedVideo = null;
     $('mealDetailsDialog').close();
     if (draft.originalPath && draft.originalPath !== nextPath) {
       await removeMealPhotoFile(draft.originalPath);
     }
+    if (draft.originalVideo !== nextVideo) await removeMealVideoFile(draft.originalVideo);
     await refresh();
   } catch (error) {
     if (uploadedPath) await removeMealPhotoFile(uploadedPath);
+    if (uploadedVideo) {
+      await removeMealVideoFile(uploadedVideo);
+      $('mealVideoStatus').textContent = '';
+    }
     errorText.textContent = error.message || 'Не удалось сохранить блюдо.';
   } finally {
     submit.disabled = cancel.disabled = false;
+    $('mealVideo').disabled = $('removeMealVideo').disabled = false;
   }
 };
 
@@ -1781,9 +1881,39 @@ function renderMealIngredients(meal, ingredients) {
   </section>`;
 }
 
+async function loadRecipeVideo(player) {
+  const video = player.querySelector('video');
+  const status = player.querySelector('[role="status"]');
+  const retry = player.querySelector('button');
+  if (video.hasAttribute('src') || retry.disabled) return;
+  retry.disabled = true;
+  retry.hidden = true;
+  status.textContent = 'Загружаем видео…';
+  const showError = message => {
+    video.hidden = true;
+    video.removeAttribute('src');
+    status.textContent = message;
+    retry.hidden = false;
+  };
+  try {
+    const {data, error} = await sb.storage.from(mealVideoBucket).createSignedUrl(player.dataset.recipeVideo, 7200);
+    if (error || !data?.signedUrl) throw error;
+    if (!player.isConnected) return;
+    video.onerror = () => showError('Видео не воспроизвелось. Попробуй ещё раз или загрузи MP4.');
+    video.src = data.signedUrl;
+    video.hidden = false;
+    status.textContent = '';
+  } catch {
+    showError('Не удалось открыть видео. Проверь соединение.');
+  } finally {
+    retry.disabled = false;
+  }
+}
+
 function renderMealDetail(meal, ingredients) {
   const planned = !!mealPreferences[meal.id]?.planned;
   const recipe = recipeAddress(meal.recipe_url);
+  const existingPlayer = $('meals').querySelector('[data-recipe-video]');
   const canEdit = Number.isInteger(meal.details_revision);
   const tabs = [['ingredients', 'Ингредиенты'], ['description', 'Описание'], ['recipe', 'Рецепт']];
   const ingredientsHidden = mealPageTab !== 'ingredients' ? ' hidden' : '';
@@ -1819,9 +1949,20 @@ function renderMealDetail(meal, ingredients) {
       </section>
       <section class="meal-panel" id="meal-panel-recipe" ${mealPageTab === 'recipe' ? '' : 'hidden'}>
         <h2>Рецепт</h2>
-        ${recipe ? `<a class="meal-recipe-link" href="${escape(recipe.href)}" target="_blank" rel="noopener noreferrer">${recipeCaption(recipe)}</a>` : '<p class="meal-detail-empty">Ссылка на рецепт пока не добавлена.</p>'}
+        ${meal.recipe_video_path ? `<div data-recipe-video="${escape(meal.recipe_video_path)}">
+          <video class="meal-recipe-video" aria-label="Видео рецепта" controls playsinline preload="metadata" hidden></video>
+          <p class="meal-detail-empty" role="status"></p>
+          <button class="btn alt meal-recipe-retry" type="button" data-retry-recipe-video hidden>Повторить</button>
+        </div>` : ''}
+        ${recipe ? `<a class="meal-recipe-link" href="${escape(recipe.href)}" target="_blank" rel="noopener noreferrer">${recipeCaption(recipe)}</a>` : ''}
+        ${!recipe && !meal.recipe_video_path ? '<p class="meal-detail-empty">Рецепт пока не добавлен.</p>' : ''}
       </section>
     </article>`;
+  const player = $('meals').querySelector('[data-recipe-video]');
+  if (player) {
+    if (existingPlayer?.dataset.recipeVideo === player.dataset.recipeVideo) player.replaceWith(existingPlayer);
+    if (mealPageTab === 'recipe') void loadRecipeVideo(existingPlayer?.isConnected ? existingPlayer : player);
+  }
   $('mealBack').onclick = event => {
     event.preventDefault();
     closeMealPage();
@@ -1890,6 +2031,11 @@ $('meals').addEventListener('click', async event => {
     $('meals').querySelector('[data-meal-filter="' + mealListFilter + '"]').focus({preventScroll: true});
     return;
   }
+  const retryVideo = event.target.closest('[data-retry-recipe-video]');
+  if (retryVideo) {
+    void loadRecipeVideo(retryVideo.closest('[data-recipe-video]'));
+    return;
+  }
   const pane = event.target.closest('[data-meal-tab]');
   if (pane) {
     mealPageTab = pane.dataset.mealTab;
@@ -1897,6 +2043,11 @@ $('meals').addEventListener('click', async event => {
       const selected = button.dataset.mealTab === mealPageTab;
       button.setAttribute('aria-pressed', String(selected));
       $(button.getAttribute('aria-controls')).hidden = !selected;
+    }
+    const player = $('meals').querySelector('[data-recipe-video]');
+    if (player) {
+      if (mealPageTab === 'recipe') void loadRecipeVideo(player);
+      else player.querySelector('video').pause();
     }
     return;
   }
@@ -2100,6 +2251,7 @@ function bindPurchaseForms() {
       if (error) alert(error.message);
       else if (isMeal) {
         if (data?.[0]?.photo_path) await removeMealPhotoFile(data[0].photo_path);
+        if (data?.[0]?.recipe_video_path) await removeMealVideoFile(data[0].recipe_video_path);
         if (currentMealId() === id) closeMealPage();
       }
       await refresh();
