@@ -322,7 +322,14 @@ main:has(.meal-page-view) { padding-bottom: calc(28px + env(safe-area-inset-bott
 .meal-ingredient-form { display: grid; gap: 8px; }
 .meal-ingredient-form > .btn { justify-self: start; }
 .meal-ingredient-form label { margin-top: 0; }
-.meal-ingredient-form [data-purchase-amount][hidden] { display: none; }
+.meal-ingredient-form [hidden] { display: none; }
+.meal-purchase-mode, .meal-purchase-amount { min-width: 0; border: 0; margin: 0; padding: 0; }
+.meal-purchase-mode legend { padding: 0; margin-bottom: 6px; font-weight: 600; }
+.meal-purchase-mode .shop-segment { width: fit-content; max-width: 100%; }
+.meal-purchase-mode .shop-segment span { display: grid; place-items: center; height: 100%; text-align: center; white-space: normal; cursor: pointer; }
+.meal-purchase-mode input:disabled + span { opacity: .45; cursor: default; }
+.meal-purchase-amount select { background: #ebf2ff; }
+.meal-purchase-amount .quantity-with-unit > label { margin: 0; }
 .ingredient-menu .meal-menu-panel { min-width: 155px; width: max-content; max-width: min(240px, 70vw); }
 .meal-description { margin-bottom: 0; }
 .meal-detail-empty { margin: 9px 0 2px; color: #60697f; font-size: 14px; }
@@ -870,12 +877,12 @@ function purchaseStatus(group) {
   return group.partial ? 'Куплено: ' + quantityLabel(bought) + ' из ' + group.quantity : '';
 }
 
-function quantityStepper() {
+function quantityStepper({name = 'quantity', amount = 1, decimal = false} = {}) {
   return `<div class="quantity-field">
     <span class="field-label">Количество</span>
     <div class="quantity-stepper">
       <button type="button" data-step="-1" aria-label="Уменьшить количество">−</button>
-      <input type="number" name="quantity" min="1" max="${quantityLimit}" step="1" value="1" inputmode="numeric" aria-label="Количество" required>
+      <input type="number" name="${name}" min="${decimal ? '0.01' : '1'}" max="${quantityLimit}" step="${decimal ? 'any' : '1'}" value="${amount}" inputmode="${decimal ? 'decimal' : 'numeric'}" aria-label="Количество" required>
       <button type="button" data-step="1" aria-label="Увеличить количество">+</button>
     </div>
   </div>`;
@@ -942,8 +949,11 @@ document.addEventListener('click', event => {
   const step = event.target.closest('[data-step]');
   if (step) {
     const field = step.parentElement.querySelector('input');
-    const current = Math.trunc(field.valueAsNumber) || 1;
-    field.value = String(Math.max(1, Math.min(quantityLimit, current + Number(step.dataset.step))));
+    const input = field.step === '1' ? Math.trunc(field.valueAsNumber) : field.valueAsNumber;
+    const current = input || 1;
+    const next = Number((current + Number(step.dataset.step)).toFixed(10));
+    const min = Number(field.min);
+    field.value = String(Math.max(min, Math.min(Number(field.max), next < min ? current : next)));
   }
   const suggestion = event.target.closest('[data-suggestion]');
   if (suggestion) {
@@ -1157,9 +1167,9 @@ $('closeShoppingIcons').onclick = () => $('shoppingIconsDialog').close();
 
 $('homeNewProductIcon').onclick = event => openShoppingIcons(event.currentTarget, '');
 
-function unitSelect(selected = '', label = 'Единица') {
-  const units = shoppingUnits.some(([unit]) => unit === selected) ? shoppingUnits : [...shoppingUnits,[selected,selected]];
-  return `<select name="unit" aria-label="${label}">${units.map(([value,text]) =>
+function unitSelect(selected = '', label = 'Единица', name = 'unit', options = shoppingUnits) {
+  const units = options.some(([unit]) => unit === selected) ? options : [...options,[selected,selected]];
+  return `<select name="${name}" aria-label="${label}">${units.map(([value,text]) =>
     `<option value="${escape(value)}" ${value === selected ? 'selected' : ''}>${escape(text)}</option>`
   ).join('')}</select>`;
 }
@@ -1661,31 +1671,49 @@ const recipeAmount = row => row.recipe_quantity ?? row.quantity;
 const recipeAmountLabel = rows => rows.length === 1 && rows[0].recipe_quantity
   ? rows[0].recipe_quantity
   : displayShoppingQuantity(quantityLabel(rows, recipeAmount));
+const ingredientPurchaseUnits = [...shoppingUnits, ['бутылка', 'бутылка'], ['__custom', 'Свой вариант']];
 
 function ingredientFields(item) {
   const mode = item?.recipe_only ? 'recipe' : item?.recipe_quantity != null ? 'separate' : 'same';
-  const option = (value, label) => `<option value="${value}" ${mode === value ? 'selected' : ''} ${value === 'recipe' && item?.purchased ? 'disabled' : ''}>${label}</option>`;
+  const purchase = readQuantity(item?.quantity);
+  const custom = !purchase.amount || purchase.amount < 0.01 || purchase.amount > quantityLimit;
+  const option = (value, label) => `<label>
+    <input type="radio" name="purchaseMode" value="${value}" ${mode === value ? 'checked' : ''} ${value === 'recipe' && item?.purchased ? 'disabled' : ''}><span>${label}</span>
+  </label>`;
   return `<div class="meal-ingredient-form">
     ${productInput('Ингредиент')}
     <label>В рецепт<input name="recipeAmount" maxlength="120" placeholder="Например, 200 г или 2 ст. л." required></label>
-    <label>В покупки<select name="purchaseMode">
-      ${option('same', 'Столько же')}
-      ${option('separate', 'Другое количество')}
-      ${option('recipe', 'Только для рецепта')}
-    </select></label>
-    <label data-purchase-amount hidden>Сколько купить<input name="purchaseAmount" maxlength="120" placeholder="Например, 1 бутылка" disabled></label>
+    <fieldset class="meal-purchase-mode">
+      <legend>В покупки</legend>
+      <div class="shop-segment">
+        ${option('same', 'Столько же')}
+        ${option('separate', 'Другое количество')}
+        ${option('recipe', 'Только рецепт')}
+      </div>
+    </fieldset>
+    <fieldset class="meal-purchase-amount" aria-label="Сколько купить" hidden disabled>
+      <div class="quantity-with-unit">
+        ${quantityStepper({name: 'purchaseQuantity', amount: custom ? 1 : purchase.amount, decimal: true})}
+        <label>Единица${unitSelect(custom ? '__custom' : purchase.unit, 'Единица', 'purchaseUnit', ingredientPurchaseUnits)}</label>
+      </div>
+      <label data-custom-purchase hidden>Сколько купить<input name="purchaseAmount" maxlength="120" placeholder="Например, 1 пучок" value="${custom ? escape(item.quantity) : ''}" disabled required></label>
+    </fieldset>
   </div>`;
 }
 
 function syncIngredientFields(form) {
   const separate = form.elements.purchaseMode.value === 'separate';
-  form.querySelector('[data-purchase-amount]').hidden = !separate;
-  form.elements.purchaseAmount.disabled = !separate;
-  form.elements.purchaseAmount.required = separate;
+  const custom = form.elements.purchaseUnit.value === '__custom';
+  const purchase = form.querySelector('.meal-purchase-amount');
+  purchase.hidden = purchase.disabled = !separate;
+  purchase.querySelector('.quantity-field').hidden = custom;
+  form.elements.purchaseQuantity.disabled = custom;
+  purchase.querySelector('[data-custom-purchase]').hidden = !custom;
+  form.elements.purchaseAmount.disabled = !custom;
 }
 
 document.addEventListener('change', event => {
-  if (event.target.matches('.meal-ingredient-form select[name="purchaseMode"]')) {
+  if (event.target.matches('.meal-ingredient-form :is([name="purchaseMode"], [name="purchaseUnit"])')) {
     syncIngredientFields(event.target.form);
   }
 });
@@ -1695,7 +1723,13 @@ function ingredientFrom(fields) {
   const name = value('name');
   const recipe = value('recipeAmount');
   const mode = fields.get('purchaseMode');
-  const quantity = mode === 'separate' ? value('purchaseAmount') : recipe;
+  let quantity = recipe;
+  if (mode === 'separate') {
+    const unit = value('purchaseUnit');
+    const amount = Number(fields.get('purchaseQuantity'));
+    quantity = unit === '__custom' ? value('purchaseAmount')
+      : amount >= 0.01 && amount <= quantityLimit ? quantityText(amount, unit) : '';
+  }
   if (!name || !recipe || !quantity) {
     return {error: {message: 'Укажите название ингредиента и количество.'}};
   }
@@ -1892,7 +1926,6 @@ function openIngredientEditor(item) {
   $('editIngredientFields').innerHTML = ingredientFields(item);
   form.elements.namedItem('name').value = item.name;
   form.elements.recipeAmount.value = recipeAmount(item) || '1 шт.';
-  form.elements.purchaseAmount.value = item.quantity ?? '';
   syncIngredientFields(form);
   $('editIngredientError').textContent = '';
   $('editIngredientDialog').showModal();
@@ -2090,11 +2123,13 @@ function restoreDrafts(drafts) {
     if (!form) continue;
     if (draft.mealId) {
       form.elements.purchaseMode.value = draft.fields.find(entry => entry.name === 'purchaseMode').value;
+      form.elements.purchaseUnit.value = draft.fields.find(entry => entry.name === 'purchaseUnit').value;
       syncIngredientFields(form);
     }
     for (const entry of draft.fields) {
-      const field = form.elements.namedItem(entry.name);
-      field.value = entry.value;
+      const control = form.elements.namedItem(entry.name);
+      control.value = entry.value;
+      const field = control instanceof RadioNodeList ? [...control].find(radio => radio.checked) : control;
       if (entry.name === 'productIcon' && validShoppingIcon(entry.value)) {
         form.querySelector('[data-shop-icon]').innerHTML = shoppingIconMarkup(entry.value);
       }
