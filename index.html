@@ -379,11 +379,19 @@ body { background: #f4f6fd; }
 .shop-segment input:focus-visible + span { outline: 2px solid #0954a8; }
 .shop-bottom .btn { background: #d4e5ff; padding: 10px 12px; white-space: nowrap; }
 #shopping .shop-list { padding: 5px 8px; }
-.shopping-category-filters { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 3px 2px 7px; margin-top: 14px; }
+.shopping-category-toolbar { position: relative; margin-top: 14px; }
+.shopping-category-filters { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; scroll-padding-inline-end: 48px; padding: 3px 2px 7px; }
+.shopping-category-filters::after { content: ""; flex: 0 0 44px; }
 .shopping-category-filters::-webkit-scrollbar { display: none; }
 .shopping-category-filters[data-dragging], .shopping-category-filters[data-dragging] button { cursor: grabbing; }
+.shopping-category-filters .filter-chip { min-height: 36px; }
 .shopping-category-filters .filter-chip[aria-pressed="true"] { color: #fff; background: #0876f9; }
-.shopping-category-filters + .shop-list { margin-top: 4px; }
+.shopping-category-toolbar + .shop-list { margin-top: 4px; }
+.shopping-edit-control { position: absolute; top: 1px; right: 0; padding: 2px 1px 2px 10px; background: linear-gradient(to right, transparent, #f4f6fd 22%); pointer-events: none; }
+.shopping-edit-toggle { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border-radius: 50%; border: 1px solid #e1e9fa; color: #075dce; background: #fff; pointer-events: auto; }
+.shopping-edit-toggle .icon { width: 19px; height: 19px; }
+.shopping-edit-toggle[aria-pressed="true"] { color: #fff; border-color: #0876f9; background: #0876f9; }
+.shopping-edit-toggle:focus-visible { outline: 2px solid #075dce; outline-offset: 2px; }
 .shopping-settings-link { display: block; width: fit-content; margin: 12px auto 0; padding: 7px 4px; color: #075ac7; font-weight: 650; }
 #productSettingsDialog { width: min(530px, calc(100% - 28px)); max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); padding: 16px; border: 1px solid #e3eafb; border-radius: 19px; color: #0a1020; }
 #productSettingsDialog::backdrop { background: #14224055; }
@@ -406,6 +414,8 @@ body { background: #f4f6fd; }
 .shop-quantity-edit :is(input,select) { padding: 4px 3px; margin: 0; min-height: 32px; border-radius: 10px; width: 45px; text-align: center; }
 .shop-quantity-edit select { width: 49px; }
 .shop-read-quantity { color: #28364f; font-size: 12px; text-align: right; }
+.shop-compact-icon { display: grid; place-items: center; flex: none; }
+.shop-compact-quantity { max-width: 42%; overflow-wrap: anywhere; }
 #shopping .price-link { padding: 0; text-align: left; min-height: 25px; font-size: 12px; }
 #shoppingIconsDialog { border: 1px solid #e3eafb; border-radius: 19px; padding: 17px; width: min(360px,calc(100% - 28px)); }
 #shoppingIconsDialog::backdrop { background: #14224055; }
@@ -625,6 +635,7 @@ const sb=createClient('https://' + supabaseProject + '.supabase.co',supabaseKey,
 const $=id=>document.getElementById(id);const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));let user=null,space=null,items=[],meals=[],members=[],tab='home',channel=null;
 const nameOf=id=>members.find(m=>m.user_id===id)?.display_name||'Участник';
 const icons = {
+  edit: '<path d="m15 5 4 4M4 20l4.5-1 12-12a1.8 1.8 0 0 0 0-2.5l-1-1a1.8 1.8 0 0 0-2.5 0l-12 12L4 20Z"/>',
   home: '<path class="home-fill" d="m3 10 9-7 9 7h-2v10h-5v-6h-4v6H5V10Z" stroke-width="1.5"/>',
   meals: '<path d="M6 16v-3.5a4.2 4.2 0 0 1 .9-8.3H7a5.5 5.5 0 0 1 10 0h.1a4.2 4.2 0 0 1 .9 8.3V16m-12 0h12v3.2a.8.8 0 0 1-.8.8H6.8a.8.8 0 0 1-.8-.8Z"/>',
   shopping: '<path d="M2 3h3l2.7 12h11.5l2.3-9H5.7"/><circle cx="9" cy="20" r="1.7" fill="currentColor" stroke="none"/><circle cx="18" cy="20" r="1.7" fill="currentColor" stroke="none"/>',
@@ -642,6 +653,7 @@ const person = member => {
 };
 
 function showTab(nextTab) {
+  if (nextTab !== 'shopping') shoppingEditMode = false;
   tab = nextTab;
   popoverId = null;
   for (const id of ['home', 'shopping', 'meals', 'budget']) $(id).classList.toggle('hidden', id !== tab);
@@ -885,7 +897,7 @@ function readQuantity(value) {
   return {amount, unit: unitAliases.get(suffix) ?? suffix};
 }
 
-function quantityLabel(rows, getQuantity = row => row.quantity) {
+function quantityLabel(rows, getQuantity = row => row.quantity, unitlessLabel = '') {
   const amounts = new Map();
   const descriptions = [];
   for (const row of rows) {
@@ -893,7 +905,10 @@ function quantityLabel(rows, getQuantity = row => row.quantity) {
     if (quantity.text) descriptions.push(quantity.text);
     else amounts.set(quantity.unit, (amounts.get(quantity.unit) || 0) + quantity.amount);
   }
-  return [...amounts].map(([unit, amount]) => numberFormat.format(amount) + (unit ? ' ' + unit : ''))
+  return [...amounts].map(([unit, amount]) => {
+    const suffix = unit || unitlessLabel;
+    return numberFormat.format(amount) + (suffix ? ' ' + suffix : '');
+  })
     .concat(descriptions).join(' + ');
 }
 
@@ -1267,6 +1282,7 @@ $('shopping').addEventListener('submit', event => {
 });
 
 let shoppingCategoryFilter = 'all';
+let shoppingEditMode = false;
 const emptyProductCategories = {categories: [], assignments: {}};
 const pendingCategoryProducts = new Set();
 const categoryCollator = new Intl.Collator('ru');
@@ -1315,6 +1331,12 @@ function renderProductSettings(groups) {
 }
 
 $('shopping').addEventListener('click', event => {
+  if (event.target.closest('[data-shopping-edit]')) {
+    shoppingEditMode = !shoppingEditMode;
+    render();
+    $('shopping').querySelector('[data-shopping-edit]').focus({preventScroll: true});
+    return;
+  }
   const filter = event.target.closest('[data-shopping-category]');
   if (filter) {
     shoppingCategoryFilter = filter.dataset.shoppingCategory;
@@ -1429,6 +1451,18 @@ function renderShopping(groups, done) {
     return (categoryOf(assignments, productKey(group.name)) || 'uncategorized') === shoppingCategoryFilter;
   });
   const rows = visible.sort((a, b) => Number(a.purchased) - Number(b.purchased)).map(group => {
+    const productIcon = shoppingIconMarkup(shoppingIcon(group.name));
+    if (!shoppingEditMode) {
+      const quantity = displayShoppingQuantity(quantityLabel(group.rows, undefined, 'шт.'));
+      return `<div class="item purchase-group">
+        <div class="row purchase-entry ${group.purchased ? 'done' : ''}">
+          ${checkedBox(group)}
+          <span class="shop-icon shop-compact-icon" aria-hidden="true">${productIcon}</span>
+          <div class="grow itemname">${escape(group.name)}</div>
+          <span class="shop-read-quantity shop-compact-quantity">${escape(quantity)}</span>
+        </div>
+      </div>`;
+    }
     const prices = group.rows.filter(row => row.price != null);
     const total = prices.reduce((sum, row) => sum + Math.round(Number(row.price) * 100), 0) / 100;
     const status = purchaseStatus(group);
@@ -1439,7 +1473,7 @@ function renderShopping(groups, done) {
     return `<div class="item purchase-group">
       <div class="row purchase-entry ${group.purchased ? 'done' : ''}">
         ${checkedBox(group)}
-        <button type="button" class="shop-icon" data-shop-icon="${escape(group.name)}" aria-label="Иконка товара ${escape(group.name)}">${shoppingIconMarkup(shoppingIcon(group.name))}</button>
+        <button type="button" class="shop-icon" data-shop-icon="${escape(group.name)}" aria-label="Иконка товара ${escape(group.name)}">${productIcon}</button>
         <div class="grow">
           <div class="itemname">${escape(group.name)}</div>
           ${mealName ? `<div class="muted small">${escape(mealName)}</div>` : ''}
@@ -1477,8 +1511,14 @@ function renderShopping(groups, done) {
         </div>
       </form>
     </div>
-    <div class="shopping-category-filters" role="group" aria-label="Категории покупок">
-      ${filters.map(([id, label]) => `<button type="button" class="filter-chip" data-shopping-category="${escape(id)}" aria-pressed="${id === shoppingCategoryFilter}">${escape(label)}</button>`).join('')}
+    <div class="shopping-category-toolbar">
+      <div class="shopping-category-filters" role="group" aria-label="Категории покупок">
+        ${filters.map(([id, label]) => `<button type="button" class="filter-chip" data-shopping-category="${escape(id)}" aria-pressed="${id === shoppingCategoryFilter}">${escape(label)}</button>`).join('')}
+      </div>
+      <div class="shopping-edit-control">
+        <button type="button" class="shopping-edit-toggle" data-shopping-edit aria-label="Редактировать покупки"
+          aria-pressed="${shoppingEditMode}" title="${shoppingEditMode ? 'Завершить редактирование' : 'Редактировать покупки'}">${icon('edit')}</button>
+      </div>
     </div>
     <div class="card shop-card shop-list">${rows || `<div class="empty">${shoppingCategoryFilter === 'all' ? 'Пока пусто. Добавьте первую покупку!' : 'В этой категории пока нет покупок.'}</div>`}</div>
     <a href="#product-settings" class="shopping-settings-link" data-product-settings>Настроить продукты</a>`;
@@ -2737,6 +2777,7 @@ function resetAccountView() {
   if ($('editIngredientDialog').open) $('editIngredientDialog').close();
   if ($('productSettingsDialog').open) $('productSettingsDialog').close();
   shoppingCategoryFilter = 'all';
+  shoppingEditMode = false;
   if (channel) {
     const previous = channel;
     channel = null;
