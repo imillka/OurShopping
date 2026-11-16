@@ -379,7 +379,9 @@ body { background: #f4f6fd; }
 .shop-segment input:focus-visible + span { outline: 2px solid #0954a8; }
 .shop-bottom .btn { background: #d4e5ff; padding: 10px 12px; white-space: nowrap; }
 #shopping .shop-list { padding: 5px 8px; }
-.shopping-category-filters { display: flex; gap: 6px; overflow-x: auto; padding: 3px 2px 7px; margin-top: 14px; }
+.shopping-category-filters { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 3px 2px 7px; margin-top: 14px; }
+.shopping-category-filters::-webkit-scrollbar { display: none; }
+.shopping-category-filters[data-dragging], .shopping-category-filters[data-dragging] button { cursor: grabbing; }
 .shopping-category-filters .filter-chip[aria-pressed="true"] { color: #fff; background: #0876f9; }
 .shopping-category-filters + .shop-list { margin-top: 4px; }
 .shopping-settings-link { display: block; width: fit-content; margin: 12px auto 0; padding: 7px 4px; color: #075ac7; font-weight: 650; }
@@ -1389,6 +1391,32 @@ $('productSettingsList').addEventListener('change', async event => {
   }
 });
 
+function enableCategoryDrag(row) {
+  let drag;
+  row.onpointerdown = event => {
+    if (event.pointerType !== 'mouse' || event.button !== 0 || row.scrollWidth <= row.clientWidth) return;
+    drag = {id: event.pointerId, start: event.clientX, scrollLeft: row.scrollLeft};
+  };
+  row.onpointermove = event => {
+    if (drag?.id !== event.pointerId || !(event.buttons & 1)) return;
+    const distance = event.clientX - drag.start;
+    if (!row.hasPointerCapture(drag.id)) {
+      if (Math.abs(distance) < 5) return;
+      // Capturing the drag keeps its release from activating a category button.
+      row.setPointerCapture(drag.id);
+      row.setAttribute('data-dragging', '');
+    }
+    row.scrollLeft = drag.scrollLeft - distance;
+  };
+  row.onpointerup = row.onpointercancel = row.onlostpointercapture = () => {
+    drag = undefined;
+    row.removeAttribute('data-dragging');
+  };
+  row.onpointerleave = event => {
+    if (!row.hasPointerCapture(event.pointerId)) drag = undefined;
+  };
+}
+
 function renderShopping(groups, done) {
   const categoryScroll = $('shopping').querySelector('.shopping-category-filters')?.scrollLeft || 0;
   const expanded = new Set(Array.from($('shopping').querySelectorAll('details[open]'), el => el.dataset.purchaseGroup));
@@ -1454,7 +1482,9 @@ function renderShopping(groups, done) {
     </div>
     <div class="card shop-card shop-list">${rows || `<div class="empty">${shoppingCategoryFilter === 'all' ? 'Пока пусто. Добавьте первую покупку!' : 'В этой категории пока нет покупок.'}</div>`}</div>
     <a href="#product-settings" class="shopping-settings-link" data-product-settings>Настроить продукты</a>`;
-  $('shopping').querySelector('.shopping-category-filters').scrollLeft = categoryScroll;
+  const categoryRow = $('shopping').querySelector('.shopping-category-filters');
+  categoryRow.scrollLeft = categoryScroll;
+  enableCategoryDrag(categoryRow);
 }
 
 const mealPhotoBucket = 'meal-photos';
