@@ -494,6 +494,26 @@ input, textarea, [contenteditable="true"] {
   color: #606b7d;
   text-decoration-thickness: 1px;
 }
+.settings-tabs { margin-bottom: 12px; }
+.settings-tabs [aria-selected="true"] { background: #0876f9; color: #fff; }
+[hidden] { display: none !important; }
+.store-form-actions { flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.store-form-actions .btn { margin-left: auto; }
+.store-settings-row { padding-block: 10px; border-top: 1px solid #edf0f4; gap: 8px; }
+.store-settings-row .btn { flex: none; padding: 8px 10px; }
+.store-badge { display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow-wrap: anywhere; vertical-align: middle; }
+.store-icon { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; flex: none; font-size: 16px; }
+.store-icon img { width: 100%; height: 100%; object-fit: contain; }
+.purchase-meta { display: flex; flex-wrap: wrap; gap: 3px 8px; font-size: 12px; color: #075ac7; font-weight: 400; }
+.purchase-meta:empty { display: none; }
+.purchase-entry .grow { min-width: 0; }
+.purchase-entry .grow > .store-badge { font-size: 12px; margin-left: 6px; }
+.shopping-store-toolbar { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 8px; margin-top: 12px; }
+.shopping-store-toolbar label { margin: 0; min-width: 0; font-size: 12px; color: #58677f; }
+.shopping-store-toolbar select { margin-top: 4px; padding: 8px; min-height: 40px; font-size: 13px; }
+.store-group-heading { font-size: 15px; padding: 12px 6px 6px; margin: 0; color: #075ac7; border-bottom: 1px solid #edf0f4; }
+.store-field { font-size: 13px; }
+.store-field select { min-height: 43px; }
 </style>
 </head>
 <body>
@@ -530,6 +550,7 @@ input, textarea, [contenteditable="true"] {
     </div>
     <div id="productQuantityField"></div>
     <div id="productPriceField"></div>
+    <div id="productStoreField"></div>
     <p id="addProductError" role="alert"></p>
     <div class="row dialog-actions">
       <button class="btn alt" id="cancelProduct" type="button">Отмена</button>
@@ -539,9 +560,10 @@ input, textarea, [contenteditable="true"] {
 </dialog>
 <dialog id="setPriceDialog" aria-labelledby="setPriceTitle">
   <form id="setPriceForm">
-    <h2 id="setPriceTitle">Стоимость покупки</h2>
+    <h2 id="setPriceTitle">Цена и магазин</h2>
     <p id="setPriceContext" class="muted"></p>
     <div id="editPriceFields"></div>
+    <div id="editStoreField"></div>
     <p id="setPriceError" role="alert"></p>
     <div class="row dialog-actions">
       <button class="btn alt" id="cancelPrice" type="button">Отмена</button>
@@ -595,15 +617,36 @@ input, textarea, [contenteditable="true"] {
 </dialog>
 <dialog id="productSettingsDialog" aria-labelledby="productSettingsTitle">
   <div class="row between product-settings-header">
-    <h2 id="productSettingsTitle">Настроить продукты</h2>
+    <h2 id="productSettingsTitle">Настройки покупок</h2>
     <form method="dialog"><button class="btn alt">Закрыть</button></form>
   </div>
+  <div class="row settings-tabs" role="tablist" aria-label="Настройки покупок">
+    <button type="button" class="filter-chip" id="productsSettingsTab" role="tab" aria-selected="true" aria-controls="productsSettingsPanel">Продукты</button>
+    <button type="button" class="filter-chip" id="storesSettingsTab" role="tab" aria-selected="false" aria-controls="storesSettingsPanel" tabindex="-1">Магазины</button>
+  </div>
+  <div id="productsSettingsPanel" role="tabpanel" aria-labelledby="productsSettingsTab">
   <form id="addShoppingCategory" class="product-category-form">
     <label>Новая категория<input name="categoryName" maxlength="45" placeholder="Например, Молочные" required></label>
     <button type="submit" class="btn">Создать</button>
   </form>
   <p id="productSettingsStatus" class="small" role="status"></p>
   <div id="productSettingsList"></div>
+  </div>
+  <div id="storesSettingsPanel" role="tabpanel" aria-labelledby="storesSettingsTab" hidden>
+    <form id="shoppingStoreForm">
+      <input type="hidden" name="storeId">
+      <input type="hidden" name="productIcon" value="🛍️">
+      <label>Название магазина<input name="storeName" maxlength="45" placeholder="Например, Магнит" required></label>
+      <div class="row store-form-actions">
+        <button type="button" class="shop-icon" id="storeIconButton" aria-label="Выбрать иконку магазина">🛍️</button>
+        <span class="small muted">Иконка магазина</span>
+        <button class="btn" id="saveShoppingStore">Создать</button>
+        <button type="button" class="btn alt" id="cancelShoppingStore" hidden>Отмена</button>
+      </div>
+    </form>
+    <p id="shoppingStoreStatus" class="small" role="status"></p>
+    <div id="shoppingStoresList"></div>
+  </div>
 </dialog>
 <dialog id="shoppingIconsDialog" aria-labelledby="shoppingIconTitle">
   <h2 id="shoppingIconTitle">Иконка товара</h2>
@@ -692,6 +735,7 @@ async function subscribeToList() {
     .on('postgres_changes', {event: '*', schema: 'public', table: 'shopping_items', filter: 'space_id=eq.' + currentId}, onChange)
     .on('postgres_changes', {event: '*', schema: 'public', table: 'meals', filter: 'space_id=eq.' + currentId}, onChange)
     .on('postgres_changes', {event: '*', schema: 'public', table: 'shopping_product_icons', filter: 'space_id=eq.' + currentId}, onChange)
+    .on('postgres_changes', {event: '*', schema: 'public', table: 'shopping_stores', filter: 'space_id=eq.' + currentId}, onChange)
     .on('postgres_changes', {event: '*', schema: 'public', table: 'shopping_categories', filter: 'space_id=eq.' + currentId}, onChange)
     .on('postgres_changes', {event: '*', schema: 'public', table: 'shopping_product_categories', filter: 'space_id=eq.' + currentId}, onChange)
     .subscribe();
@@ -710,7 +754,8 @@ async function refresh() {
       sb.from('meals').select('*').eq('space_id', workspace.id).order('created_at'),
       sb.from('space_members').select('user_id,display_name').eq('space_id', workspace.id).order('display_name'),
       loadSharedShoppingIcons(workspace.id),
-      loadShoppingCategories(workspace.id)
+      loadShoppingCategories(workspace.id),
+      loadShoppingStores(workspace.id)
     ]);
   } catch (error) {
     if (user?.id === account && version === refreshVersion) setConnectionUnavailable(true);
@@ -727,12 +772,13 @@ async function refresh() {
     }
     return;
   }
-  const [purchases, dishes, people, productIcons, productCategories] = results;
+  const [purchases, dishes, people, productIcons, productCategories, stores] = results;
   const snapshot = {
     space: workspace,
     items: purchases.data || [],
     productIcons,
     productCategories,
+    stores,
     meals: dishes.data || [],
     members: (people.data || []).sort((a, b) => Number(a.display_name.startsWith('❤')) - Number(b.display_name.startsWith('❤')))
   };
@@ -850,6 +896,7 @@ function renderHome(groups, done, pct, total) {
   $('newProduct').onclick = () => {
     $('addProductError').textContent = '';
     $('addProductForm').reset();
+    $('productStoreField').innerHTML = storeField();
     $('homeNewProductIcon').textContent = '🛍️';
     $('addProductDialog').showModal();
   };
@@ -1065,6 +1112,7 @@ async function insertPurchase(form, mealId = null) {
     name,
     quantity: quantityText(quantity, shoppingUnits.some(([value]) => value === unit) ? unit : ''),
     price,
+    store_id: fields.get('storeId') || null,
     created_by: user.id
   }).select('id').single();
   if (!result.error && validShoppingIcon(fields.get('productIcon'))) {
@@ -1087,14 +1135,14 @@ function shoppingPortion(item) {
       ${quantityEditor(item)}
     </div>
     <div class="portion-actions">
-      <button type="button" class="btn alt" data-price-item="${escape(item.id)}" ${canEditPrice ? '' : 'disabled title="Цену может изменить тот, кто отметил покупку"'}>${item.price == null ? 'Указать цену' : money(item.price)}</button>
+      <button type="button" class="btn alt" data-price-item="${escape(item.id)}" ${canEditPrice ? '' : 'disabled title="Цену может изменить тот, кто отметил покупку"'}>${item.price == null ? 'Цена и магазин' : money(item.price)}</button>${storeBadge(item.store_id)}
       <button type="button" class="link" data-del="${escape(item.id)}" aria-label="Удалить ${escape(item.name)}">✕</button>
     </div>
   </div>`;
 }
 
 const shoppingUnits = [['','шт.'],['г','г'],['кг','кг'],['мл','мл'],['л','л'],['уп','уп.'],['б','банка']];
-const shoppingIcons = ['🛍️','🍆','🍅','🥬','🥣','🥚','🧄','🍞','🥛','🧀','🍗','🐟','🥩','🥔','🥕','🥒','🧅','🌶️','🍄','🍏','🍋','🍌','🍓','🍚','🍝','🫘','🧈','🧂','🍫','🍯','🫙','🧃','💧','☕'];
+const shoppingIcons = ['🛍️','🏪','🛒','🏬','🔴','🟢','🍆','🍅','🥬','🥣','🥚','🧄','🍞','🥛','🧀','🍗','🐟','🥩','🥔','🥕','🥒','🧅','🌶️','🍄','🍏','🍋','🍌','🍓','🍚','🍝','🫘','🧈','🧂','🍫','🍯','🫙','🧃','💧','☕'];
 const suggestedIcons = [
   [/баклаж/, '🍆'], [/томат|помидор/, '🍅'], [/салат|зелень|шпинат/, '🥬'],
   [/сухар|паниров|круп/, '🥣'], [/яйц|яиц/, '🥚'], [/чеснок/, '🧄'],
@@ -1168,6 +1216,7 @@ function displayShoppingQuantity(quantity) {
 let shoppingIconTarget;
 function openShoppingIcons(button, name) {
   const current = name ? shoppingIcon(name) : button.form.elements.namedItem('productIcon').value || '🛍️';
+  $('shoppingIconTitle').textContent = button.id === 'storeIconButton' ? 'Иконка магазина' : 'Иконка товара';
   shoppingIconTarget = {button, name};
   $('shoppingIconChoices').innerHTML = shoppingIcons.map(glyph =>
     `<button type="button" data-glyph="${glyph}" aria-pressed="${glyph === current}">${glyph}</button>`
@@ -1312,6 +1361,128 @@ function categoryOf(assignments, key) {
   return Object.hasOwn(assignments, key) ? assignments[key] || '' : '';
 }
 
+
+// Stores belong to the shared workspace and travel with the offline snapshot.
+let shoppingStoreFilter = 'all';
+let shoppingStoreOrder = false;
+let shoppingSettingsTab = 'products';
+function shoppingStores(workspace = space?.id) {
+  const snapshot = offlineState.snapshot;
+  return snapshot?.space.id === workspace ? snapshot.stores || [] : [];
+}
+async function loadShoppingStores(workspace) {
+  try {
+    const {data, error} = await sb.from('shopping_stores').select('id,name,icon_value').eq('space_id', workspace).order('name');
+    if (error) throw error;
+    return data || [];
+  } catch { return shoppingStores(workspace); }
+}
+function storeBadge(id) {
+  const store = shoppingStores().find(store => store.id === id);
+  return store ? `<span class="store-badge"><span class="store-icon" aria-hidden="true">${shoppingIconMarkup(store.icon_value)}</span><span>${escape(store.name)}</span></span>` : '';
+}
+function storeField(selected = '') {
+  return `<label class="store-field">Магазин<select name="storeId"><option value="">Без магазина</option>${shoppingStores().map(store => `<option value="${escape(store.id)}" ${store.id === selected ? 'selected' : ''}>${escape(store.name)}</option>`).join('')}</select></label>`;
+}
+function purchaseMeta(rows) {
+  const prices = rows.filter(row => row.price != null);
+  const total = prices.reduce((sum, row) => sum + Math.round(Number(row.price) * 100), 0) / 100;
+  const stores = [...new Set(rows.map(row => row.store_id || ''))];
+  return `<div class="purchase-meta">${prices.length ? `<span>${prices.length < rows.length ? 'Указано ' : ''}${money(total)}</span>` : ''}${stores.map(id => storeBadge(id) || (stores.length > 1 ? '<span class="muted">Без магазина</span>' : '')).join('')}</div>`;
+}
+function shoppingDisplayGroups(groups) {
+  const filteredRows = groups.flatMap(group => group.rows).filter(row => shoppingStoreFilter === 'all' || (row.store_id || '') === shoppingStoreFilter);
+  if (!shoppingStoreOrder) return groupProducts(filteredRows).sort((a,b) => Number(a.purchased) - Number(b.purchased));
+  const buckets = new Map();
+  for (const row of filteredRows) {
+    const key = row.store_id || '';
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(row);
+  }
+  return [...buckets].sort(([a],[b]) => {
+    if (!a || !b) return a ? -1 : b ? 1 : 0;
+    return categoryCollator.compare(shoppingStores().find(s => s.id === a)?.name || '', shoppingStores().find(s => s.id === b)?.name || '');
+  }).flatMap(([storeId, rows]) => groupProducts(rows).sort((a,b) => Number(a.purchased) - Number(b.purchased)).map((group,index) => ({...group, storeId, storeHeading: index === 0})));
+}
+function setShoppingSettingsTab(value) {
+  shoppingSettingsTab = value;
+  for (const name of ['products','stores']) {
+    const active = value === name;
+    $(name + 'SettingsTab').setAttribute('aria-selected', String(active));
+    $(name + 'SettingsTab').tabIndex = active ? 0 : -1;
+    $(name + 'SettingsPanel').hidden = !active;
+  }
+  renderShoppingStores();
+}
+for (const name of ['products','stores']) {
+  $(name + 'SettingsTab').onclick = () => setShoppingSettingsTab(name);
+  $(name + 'SettingsTab').onkeydown = event => {
+    if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === 'Home' ? 'products' : event.key === 'End' ? 'stores' : name === 'products' ? 'stores' : 'products';
+    setShoppingSettingsTab(next);
+    $(next + 'SettingsTab').focus();
+  };
+}
+function renderShoppingStores() {
+  $('shoppingStoresList').innerHTML = shoppingStores().map(store => `<div class="row between store-settings-row">${storeBadge(store.id)}<button type="button" class="btn alt" data-edit-store="${escape(store.id)}" aria-label="Изменить магазин ${escape(store.name)}">Изменить</button></div>`).join('') || '<p class="muted small">Создайте первый магазин и выберите его рядом с ценой покупки.</p>';
+}
+function resetShoppingStoreForm() {
+  $('shoppingStoreForm').reset();
+  $('shoppingStoreForm').elements.storeId.value = '';
+  $('shoppingStoreForm').elements.productIcon.value = '🛍️';
+  $('storeIconButton').innerHTML = '🛍️';
+  $('saveShoppingStore').textContent = 'Создать';
+  $('cancelShoppingStore').hidden = true;
+}
+$('storeIconButton').onclick = event => openShoppingIcons(event.currentTarget, '');
+$('cancelShoppingStore').onclick = resetShoppingStoreForm;
+$('shoppingStoresList').onclick = event => {
+  const button = event.target.closest('[data-edit-store]');
+  if (!button) return;
+  const store = shoppingStores().find(store => store.id === button.dataset.editStore);
+  if (!store) return;
+  const form = $('shoppingStoreForm');
+  form.elements.storeId.value = store.id;
+  form.elements.storeName.value = store.name;
+  form.elements.productIcon.value = store.icon_value;
+  $('storeIconButton').innerHTML = shoppingIconMarkup(store.icon_value);
+  $('saveShoppingStore').textContent = 'Сохранить';
+  $('cancelShoppingStore').hidden = false;
+  $('shoppingStoreStatus').textContent = '';
+  form.elements.storeName.focus();
+};
+$('shoppingStoreForm').onsubmit = async event => {
+  event.preventDefault();
+  if ($('saveShoppingStore').disabled || mutationNeedsInternet()) return;
+  const form = event.currentTarget;
+  const name = form.elements.storeName.value.trim().replace(/\s+/g, ' ');
+  const icon_value = form.elements.productIcon.value;
+  if (!name || !validShoppingIcon(icon_value)) return;
+  const id = form.elements.storeId.value;
+  for (const control of form.elements) control.disabled = true;
+  $('shoppingStoreStatus').textContent = '';
+  try {
+    const query = id ? sb.from('shopping_stores').update({name, icon_value}).eq('space_id', space.id).eq('id', id) : sb.from('shopping_stores').insert({space_id: space.id, name, icon_value});
+    const {data, error} = await query.select('id');
+    if (error) throw error;
+    if (!data?.length) throw new Error('Магазин больше недоступен.');
+    resetShoppingStoreForm();
+    $('shoppingStoreStatus').textContent = id ? 'Магазин сохранён.' : 'Магазин создан.';
+    await refresh();
+  } catch (error) {
+    $('shoppingStoreStatus').textContent = error.code === '23505' ? 'Магазин с таким названием уже есть.' : 'Не удалось сохранить магазин. Попробуйте ещё раз.';
+  } finally { for (const control of form.elements) control.disabled = false; }
+};
+$('shopping').addEventListener('change', event => {
+  if (event.target.matches('[data-store-filter]')) shoppingStoreFilter = event.target.value;
+  else if (event.target.matches('[data-store-order]')) shoppingStoreOrder = event.target.value === 'stores';
+  else return;
+  const selector = event.target.matches('[data-store-filter]') ? '[data-store-filter]' : '[data-store-order]';
+  render();
+  $('shopping').querySelector(selector)?.focus({preventScroll:true});
+});
+
 function renderProductSettings(groups) {
   const {categories, assignments} = shoppingCategoryData();
   const list = $('productSettingsList');
@@ -1349,6 +1520,9 @@ $('shopping').addEventListener('click', event => {
   $('addShoppingCategory').reset();
   $('productSettingsStatus').textContent = '';
   renderProductSettings(groupProducts(items.filter(item => !item.recipe_only)));
+  resetShoppingStoreForm();
+  $('shoppingStoreStatus').textContent = '';
+  setShoppingSettingsTab(shoppingSettingsTab);
   $('productSettingsDialog').showModal();
 });
 $('productSettingsDialog').addEventListener('close', () => {
@@ -1450,15 +1624,17 @@ function renderShopping(groups, done) {
   const visible = shoppingCategoryFilter === 'all' ? [...groups] : groups.filter(group => {
     return (categoryOf(assignments, productKey(group.name)) || 'uncategorized') === shoppingCategoryFilter;
   });
-  const rows = visible.sort((a, b) => Number(a.purchased) - Number(b.purchased)).map(group => {
+  if (shoppingStoreFilter !== 'all' && shoppingStoreFilter && !shoppingStores().some(store => store.id === shoppingStoreFilter)) shoppingStoreFilter = 'all';
+  const rows = shoppingDisplayGroups(visible).map(group => {
+    const heading = group.storeHeading ? `<h3 class="store-group-heading">${storeBadge(group.storeId) || 'Без магазина'}</h3>` : '';
     const productIcon = shoppingIconMarkup(shoppingIcon(group.name));
     if (!shoppingEditMode) {
       const quantity = displayShoppingQuantity(quantityLabel(group.rows, undefined, 'шт.'));
-      return `<div class="item purchase-group">
+      return `${heading}<div class="item purchase-group">
         <div class="row purchase-entry ${group.purchased ? 'done' : ''}">
           ${checkedBox(group)}
           <span class="shop-icon shop-compact-icon" aria-hidden="true">${productIcon}</span>
-          <div class="grow itemname">${escape(group.name)}</div>
+          <div class="grow"><div class="itemname">${escape(group.name)}</div>${purchaseMeta(group.rows)}</div>
           <span class="shop-read-quantity shop-compact-quantity">${escape(quantity)}</span>
         </div>
       </div>`;
@@ -1470,7 +1646,7 @@ function renderShopping(groups, done) {
     const single = group.rows.length === 1;
     const mealName = single && meals.find(meal => meal.id === item.meal_id)?.name;
     const canEditPrice = !item.purchased_by || item.purchased_by === user.id;
-    return `<div class="item purchase-group">
+    return `${heading}<div class="item purchase-group">
       <div class="row purchase-entry ${group.purchased ? 'done' : ''}">
         ${checkedBox(group)}
         <button type="button" class="shop-icon" data-shop-icon="${escape(group.name)}" aria-label="Иконка товара ${escape(group.name)}">${productIcon}</button>
@@ -1478,7 +1654,7 @@ function renderShopping(groups, done) {
           <div class="itemname">${escape(group.name)}</div>
           ${mealName ? `<div class="muted small">${escape(mealName)}</div>` : ''}
           ${status ? `<div class="muted small">${escape(status)}</div>` : ''}
-          ${single ? `<button type="button" class="link price-link" data-price-item="${escape(item.id)}" ${canEditPrice ? '' : 'disabled'}>${item.price == null ? 'Цена' : money(item.price)}</button>` : ''}
+          ${single ? `<button type="button" class="link price-link" data-price-item="${escape(item.id)}" ${canEditPrice ? '' : 'disabled'}>${item.price == null ? 'Цена и магазин' : money(item.price)}</button>${storeBadge(item.store_id)}` : ''}
         </div>
         ${single ? `${quantityEditor(item)}<button type="button" class="link" data-del="${escape(item.id)}" aria-label="Удалить ${escape(group.name)}">✕</button>` : `<span class="shop-read-quantity">${escape(group.quantity)}</span>`}
       </div>
@@ -1502,6 +1678,7 @@ function renderShopping(groups, done) {
           <label>Единица${unitSelect()}</label>
           <label>Цена, ₽<input name="price" type="number" min="0" max="${priceLimit}" step="0.01" inputmode="decimal" placeholder="0,00"></label>
         </div>
+        ${storeField()}
         <div class="shop-bottom">
           <fieldset><legend>Расчёт</legend><div class="shop-segment">
             <label><input type="radio" name="priceMode" value="total" checked><span>За всё</span></label>
@@ -1510,6 +1687,10 @@ function renderShopping(groups, done) {
           <button class="btn">+ Добавить</button>
         </div>
       </form>
+    </div>
+    <div class="shopping-store-toolbar">
+      <label>Показать магазин<select data-store-filter aria-label="Фильтр по магазину"><option value="all">Все магазины</option><option value="" ${shoppingStoreFilter === '' ? 'selected' : ''}>Без магазина</option>${shoppingStores().map(store => `<option value="${escape(store.id)}" ${shoppingStoreFilter === store.id ? 'selected' : ''}>${escape(store.name)}</option>`).join('')}</select></label>
+      <label>Порядок<select data-store-order aria-label="Порядок покупок"><option value="default">Обычный список</option><option value="stores" ${shoppingStoreOrder ? 'selected' : ''}>По магазинам</option></select></label>
     </div>
     <div class="shopping-category-toolbar">
       <div class="shopping-category-filters" role="group" aria-label="Категории покупок">
@@ -1520,8 +1701,8 @@ function renderShopping(groups, done) {
           aria-pressed="${shoppingEditMode}" title="${shoppingEditMode ? 'Завершить редактирование' : 'Редактировать покупки'}">${icon('edit')}</button>
       </div>
     </div>
-    <div class="card shop-card shop-list">${rows || `<div class="empty">${shoppingCategoryFilter === 'all' ? 'Пока пусто. Добавьте первую покупку!' : 'В этой категории пока нет покупок.'}</div>`}</div>
-    <a href="#product-settings" class="shopping-settings-link" data-product-settings>Настроить продукты</a>`;
+    <div class="card shop-card shop-list">${rows || `<div class="empty">${!groups.length ? 'Пока пусто. Добавьте первую покупку!' : 'Нет покупок с выбранными фильтрами.'}</div>`}</div>
+    <a href="#product-settings" class="shopping-settings-link" data-product-settings>Настройки покупок</a>`;
   const categoryRow = $('shopping').querySelector('.shopping-category-filters');
   categoryRow.scrollLeft = categoryScroll;
   enableCategoryDrag(categoryRow);
@@ -2378,6 +2559,7 @@ function openPrice(item) {
   form.dataset.itemId = item.id;
   $('setPriceContext').textContent = item.name + ' — ' + quantityLabel([item]);
   form.elements.price.value = item.price ?? '';
+  $('editStoreField').innerHTML = storeField(item.store_id || '');
   form.elements.priceMode.options[1].disabled = !quantity.amount;
   $('setPriceError').textContent = '';
   $('setPriceDialog').showModal();
@@ -2404,13 +2586,21 @@ $('setPriceForm').onsubmit = async event => {
   $('submitPrice').disabled = true;
   $('cancelPrice').disabled = true;
   try {
-    const {error} = await sb.from('shopping_items').update({price}).eq('space_id', space.id).eq('id', item.id);
+    const store_id = form.elements.storeId.value || null;
+    const {data, error} = await sb.from('shopping_items').update({price, store_id}).eq('space_id', space.id).eq('id', item.id).or('purchased_by.is.null,purchased_by.eq.' + user.id).select('id');
+    if (!error && !data?.length) {
+      $('setPriceError').textContent = 'Покупка изменилась. Обновите список и откройте её заново.';
+      await refresh();
+      return;
+    }
     if (error) {
       $('setPriceError').textContent = error.message;
       return;
     }
     $('setPriceDialog').close();
     await refresh();
+  } catch {
+    $('setPriceError').textContent = 'Не удалось сохранить цену и магазин. Попробуйте ещё раз.';
   } finally {
     $('submitPrice').disabled = false;
     $('cancelPrice').disabled = false;
@@ -2589,7 +2779,7 @@ function render(){if(!user)return;if(!space){$('headerPeople').innerHTML='';$('h
   const total = purchases.reduce((sum, item) => sum + (item.purchased ? Math.round(Number(item.price || 0) * 100) : 0), 0) / 100;
   renderHome(groups, done, pct, total);
   renderShopping(groups, done);
-  if ($('productSettingsDialog').open) renderProductSettings(groups);
+  if ($('productSettingsDialog').open) { renderProductSettings(groups); renderShoppingStores(); }
   renderMeals(groups);
   observeMealPhotos();
   $('budget').innerHTML = sectionHeading('budget', 'Бюджет') + `
@@ -2777,6 +2967,8 @@ function resetAccountView() {
   if ($('editIngredientDialog').open) $('editIngredientDialog').close();
   if ($('productSettingsDialog').open) $('productSettingsDialog').close();
   shoppingCategoryFilter = 'all';
+  shoppingStoreFilter = 'all';
+  shoppingStoreOrder = false;
   shoppingEditMode = false;
   if (channel) {
     const previous = channel;
